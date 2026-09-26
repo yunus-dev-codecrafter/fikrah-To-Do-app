@@ -106,6 +106,68 @@
         <p id="celebration" class="celebration" hidden>✓ All done. Well deserved.</p>
       </section>
 
+      <section class="quran-card" aria-labelledby="quran-heading">
+        <div class="quran-head">
+          <div class="quran-head-text">
+            <h2 id="quran-heading">Qur'an Revision <span class="quran-ar" lang="ar">مراجعة القرآن</span></h2>
+            <p id="quran-sub" class="quran-sub">Plan today's pages from the 604-page Mushaf. Resets at midnight.</p>
+          </div>
+          <button id="quran-clear" type="button" class="btn-ghost quran-clear" hidden>New plan</button>
+        </div>
+
+        <form id="quran-form" autocomplete="off" novalidate>
+          <div class="quran-form-row">
+            <div class="quran-field">
+              <label for="quran-start"><span dir="auto">Start page · <span lang="ar">صفحة البداية</span></span></label>
+              <input
+                id="quran-start"
+                name="quran-start"
+                type="number"
+                inputmode="numeric"
+                min="1"
+                max="604"
+                step="1"
+                placeholder="120"
+                aria-describedby="quran-error"
+              />
+            </div>
+            <div class="quran-field">
+              <label for="quran-end"><span dir="auto">End page · <span lang="ar">صفحة النهاية</span></span></label>
+              <input
+                id="quran-end"
+                name="quran-end"
+                type="number"
+                inputmode="numeric"
+                min="1"
+                max="604"
+                step="1"
+                placeholder="145"
+                aria-describedby="quran-error"
+              />
+            </div>
+            <button id="quran-start-btn" type="submit" class="btn-primary">Start Revision</button>
+          </div>
+          <p id="quran-error" class="form-error" role="alert" hidden></p>
+        </form>
+
+        <div id="quran-active" hidden>
+          <div class="quran-meta-row">
+            <p id="quran-range-label" class="quran-range" dir="auto"></p>
+            <p id="quran-progress-label" class="quran-progress-text" aria-live="polite"></p>
+          </div>
+          <div class="progress-track" role="progressbar" aria-label="Qur'an revision progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="quran-progress-bar">
+            <div class="progress-fill" id="quran-progress-fill"></div>
+          </div>
+          <div class="quran-jump-row">
+            <label for="quran-jump">Jump to page</label>
+            <input id="quran-jump" type="number" inputmode="numeric" min="1" max="604" step="1" placeholder="e.g. 250" aria-label="Jump to page number" />
+            <button id="quran-jump-btn" type="button" class="btn-secondary quran-jump-btn">Go</button>
+          </div>
+          <div id="quran-grid" class="quran-grid" role="list" aria-label="Revision pages"></div>
+          <p id="quran-complete" class="celebration quran-complete" hidden></p>
+        </div>
+      </section>
+
       <section class="list-card" aria-labelledby="task-list-heading">
         <h2 id="task-list-heading" class="list-heading">Today's list</h2>
 

@@ -11,6 +11,8 @@
   var MAX_TEXT_LENGTH = 500;
   var ROLLOVER_CHECK_MS = 30000;
   var REMINDER_CHECK_MS = 20000;
+  var QURAN_MIN = 1;
+  var QURAN_MAX = 604;
 
   // Centralized UI strings (future localization point).
   var STRINGS = {
@@ -26,7 +28,12 @@
     reminderGranted: "Reminders enabled ✓",
     notifDuePrefixEn: "🔔 It's time:",
     notifDuePrefixAr: "🔔 حان وقت:",
-    appName: "Fikra To-Do"
+    appName: "Fikra To-Do",
+    quranEmptyError: "Enter a start and end page (1–604).",
+    quranRangeError: "Pages must be between 1 and 604, with start ≤ end.",
+    quranReplaceConfirm: "Replace today's revision plan? Completed pages for today will be cleared.",
+    quranCompleteMsg: "Mā shā’ Allāh! Today's revision is complete.",
+    quranJumpError: "Enter a page number within today's plan to jump to it."
   };
 
   // ---------- DOM ----------
@@ -49,6 +56,20 @@
   var installFallbackEl = document.getElementById("install-fallback");
   var reminderBtn = document.getElementById("reminder-btn");
   var reminderStatusEl = document.getElementById("reminder-status");
+  var quranFormEl = document.getElementById("quran-form");
+  var quranStartEl = document.getElementById("quran-start");
+  var quranEndEl = document.getElementById("quran-end");
+  var quranErrorEl = document.getElementById("quran-error");
+  var quranActiveEl = document.getElementById("quran-active");
+  var quranRangeEl = document.getElementById("quran-range-label");
+  var quranProgressLabelEl = document.getElementById("quran-progress-label");
+  var quranProgressBarEl = document.getElementById("quran-progress-bar");
+  var quranProgressFillEl = document.getElementById("quran-progress-fill");
+  var quranGridEl = document.getElementById("quran-grid");
+  var quranCompleteEl = document.getElementById("quran-complete");
+  var quranClearBtn = document.getElementById("quran-clear");
+  var quranJumpEl = document.getElementById("quran-jump");
+  var quranJumpBtn = document.getElementById("quran-jump-btn");
 
   // ---------- Date utils ----------
   // Local calendar key, e.g. "2026-09-26". Never UTC — must follow user's local day.
@@ -129,7 +150,43 @@
   }
 
   function blankState(dateKey) {
-    return { date: dateKey, tasks: [] };
+    return { date: dateKey, tasks: [], quran: null };
+  }
+
+  // Qur'an plan validation: { date, startPage, endPage, completed:[...], createdAt }.
+  function isValidQuranPlan(q) {
+    if (!q || typeof q !== "object") return false;
+    if (typeof q.date !== "string" || !q.date) return false;
+    if (!Number.isInteger(q.startPage) || !Number.isInteger(q.endPage)) return false;
+    if (q.startPage < QURAN_MIN || q.endPage > QURAN_MAX) return false;
+    if (q.startPage > q.endPage) return false;
+    if (!Array.isArray(q.completed)) return false;
+    if (typeof q.createdAt !== "number") return false;
+    return true;
+  }
+
+  function sanitizeQuranPlan(q, dateKey) {
+    if (!isValidQuranPlan(q)) return null;
+    // Only today's plan is active; yesterday's plan is retired by ensureTodayFresh,
+    // but also guard here against stale/mismatched dates.
+    if (q.date !== dateKey) return null;
+    var seen = {};
+    var clean = [];
+    for (var i = 0; i < q.completed.length; i++) {
+      var p = q.completed[i];
+      if (Number.isInteger(p) && p >= q.startPage && p <= q.endPage && !seen[p]) {
+        seen[p] = true;
+        clean.push(p);
+      }
+    }
+    clean.sort(function (a, b) { return a - b; });
+    return {
+      date: q.date,
+      startPage: q.startPage,
+      endPage: q.endPage,
+      completed: clean,
+      createdAt: q.createdAt
+    };
   }
 
   function loadState() {
@@ -163,7 +220,15 @@
       });
       // Stable order.
       clean.sort(function (a, b) { return a.order - b.order; });
-      return { date: parsed.date, tasks: clean };
+      // Qur'an plan migrates safely: missing/invalid/stale -> null (no plan), tasks untouched.
+      var quran = sanitizeQuranPlan(parsed.quran === undefined ? null : parsed.quran, parsed.date);
+      // If stored day is already stale, today's first ensureTodayFresh() will retire it;
+      // still return as-is here so the date comparison can trigger the reset.
+      if (parsed.date !== key) {
+        if (quran && quran.date !== parsed.date) quran = null;
+        return { date: parsed.date, tasks: clean, quran: quran };
+      }
+      return { date: parsed.date, tasks: clean, quran: quran };
     } catch (e) {
       // Corrupted JSON — start fresh rather than break.
       return blankState(key);
@@ -296,6 +361,70 @@
     return null;
   }
 
+  // ---------- Qur'an revision ops (daily plan, 1–604) ----------
+  function parseQuranInput(v) {
+    if (v === null || v === undefined) return null;
+    var s = String(v).trim();
+    if (!s) return null;
+    // Accept Arabic-Indic digits too.
+    s = s.replace(/[\u0660-\u0669]/g, function (d) { return String(d.charCodeAt(0) - 0x0660); })
+         .replace(/[\u06F0-\u06F9]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); });
+    if (!/^\d+$/.test(s)) return null;
+    var n = parseInt(s, 10);
+    if (!Number.isFinite(n)) return null;
+    return n;
+  }
+
+  function validateQuranRange(startRaw, endRaw) {
+    var start = parseQuranInput(startRaw);
+    var end = parseQuranInput(endRaw);
+    if (start === null || end === null) {
+      return { ok: false, error: STRINGS.quranEmptyError };
+    }
+    if (start < QURAN_MIN || end < QURAN_MIN || start > QURAN_MAX || end > QURAN_MAX || start > end) {
+      return { ok: false, error: STRINGS.quranRangeError };
+    }
+    return { ok: true, start: start, end: end };
+  }
+
+  function quranStats() {
+    if (!state.quran) return { total: 0, done: 0, pct: 0 };
+    var total = state.quran.endPage - state.quran.startPage + 1;
+    var done = state.quran.completed.length;
+    var pct = total === 0 ? 0 : Math.round((done / total) * 100);
+    return { total: total, done: done, pct: pct };
+  }
+
+  function createQuranPlan(start, end) {
+    state.quran = {
+      date: todayKey(),
+      startPage: start,
+      endPage: end,
+      completed: [],
+      createdAt: Date.now()
+    };
+    saveState(state);
+    renderQuran();
+  }
+
+  function clearQuranPlan() {
+    state.quran = null;
+    saveState(state);
+    renderQuran();
+  }
+
+  function toggleQuranPage(page) {
+    if (!state.quran) return;
+    if (!Number.isInteger(page) || page < state.quran.startPage || page > state.quran.endPage) return;
+    var idx = state.quran.completed.indexOf(page);
+    if (idx === -1) state.quran.completed.push(page);
+    else state.quran.completed.splice(idx, 1);
+    state.quran.completed.sort(function (a, b) { return a - b; });
+    saveState(state);
+    renderQuranStats();
+    updateQuranButton(page);
+  }
+
   function taskReminderState(task, now) {
     // Upcoming | Due | Completed | Overdue (timed tasks only; untimed -> "none").
     if (!task.time) return "none";
@@ -329,6 +458,7 @@
     renderDate();
     renderTasks();
     renderSummary();
+    renderQuran();
   }
 
   function renderDate() {
@@ -352,6 +482,106 @@
     progressBarEl.setAttribute("aria-valuenow", String(pct));
     var allDone = total > 0 && done === total;
     celebrationEl.hidden = !allDone;
+  }
+
+  // ---------- Qur'an rendering ----------
+  function showQuranError(msg) {
+    if (!quranErrorEl) return;
+    quranErrorEl.textContent = msg;
+    quranErrorEl.hidden = false;
+  }
+  function hideQuranError() {
+    if (!quranErrorEl) return;
+    quranErrorEl.textContent = "";
+    quranErrorEl.hidden = true;
+  }
+
+  function renderQuran() {
+    // Graceful no-op if markup is missing (e.g. older cached index.html).
+    if (!quranFormEl || !quranActiveEl || !quranGridEl) return;
+    var hasPlan = !!state.quran;
+    quranFormEl.hidden = hasPlan;
+    quranActiveEl.hidden = !hasPlan;
+    if (quranClearBtn) quranClearBtn.hidden = !hasPlan;
+    if (!hasPlan) {
+      hideQuranError();
+      return;
+    }
+    // Rebuild grid efficiently with a fragment (604 buttons max — fine without virtualization).
+    while (quranGridEl.firstChild) quranGridEl.removeChild(quranGridEl.firstChild);
+    var doneSet = {};
+    state.quran.completed.forEach(function (p) { doneSet[p] = true; });
+    var frag = document.createDocumentFragment();
+    for (var p = state.quran.startPage; p <= state.quran.endPage; p++) {
+      frag.appendChild(makeQuranButton(p, !!doneSet[p]));
+    }
+    quranGridEl.appendChild(frag);
+    renderQuranStats();
+  }
+
+  function makeQuranButton(page, completed) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "quran-page" + (completed ? " completed" : "");
+    btn.setAttribute("role", "listitem");
+    btn.setAttribute("aria-pressed", completed ? "true" : "false");
+    btn.setAttribute("aria-label", (completed ? "Mark page " : "Mark page ") + page + (completed ? " as not completed" : " as completed"));
+    btn.dataset.page = String(page);
+    var check = document.createElement("span");
+    check.className = "quran-check";
+    check.setAttribute("aria-hidden", "true");
+    check.textContent = completed ? "✓" : "";
+    var num = document.createElement("span");
+    num.setAttribute("dir", "ltr");
+    num.textContent = String(page);
+    btn.appendChild(check);
+    btn.appendChild(num);
+    return btn;
+  }
+
+  function renderQuranStats() {
+    if (!state.quran || !quranRangeEl) return;
+    var s = quranStats();
+    quranRangeEl.textContent = "Today's Revision · Pages " + state.quran.startPage + "–" + state.quran.endPage;
+    if (quranProgressLabelEl) {
+      quranProgressLabelEl.textContent = s.done + " / " + s.total + " pages · " + s.pct + "%";
+    }
+    if (quranProgressFillEl) quranProgressFillEl.style.width = s.pct + "%";
+    if (quranProgressBarEl) quranProgressBarEl.setAttribute("aria-valuenow", String(s.pct));
+    if (quranCompleteEl) {
+      var allDone = s.total > 0 && s.done === s.total;
+      quranCompleteEl.hidden = !allDone;
+      if (allDone) quranCompleteEl.textContent = STRINGS.quranCompleteMsg;
+    }
+    if (quranJumpEl) {
+      quranJumpEl.min = String(state.quran.startPage);
+      quranJumpEl.max = String(state.quran.endPage);
+    }
+  }
+
+  function updateQuranButton(page) {
+    if (!quranGridEl) return;
+    var sel = 'button[data-page="' + String(page) + '"]';
+    var btn = quranGridEl.querySelector(sel);
+    if (!btn || !state.quran) return;
+    var completed = state.quran.completed.indexOf(page) !== -1;
+    btn.classList.toggle("completed", completed);
+    btn.setAttribute("aria-pressed", completed ? "true" : "false");
+    btn.setAttribute("aria-label", "Mark page " + page + (completed ? " as not completed" : " as completed"));
+    var check = btn.querySelector(".quran-check");
+    if (check) check.textContent = completed ? "✓" : "";
+  }
+
+  function jumpToQuranPage(page) {
+    if (!quranGridEl) return false;
+    var btn = quranGridEl.querySelector('button[data-page="' + String(page) + '"]');
+    if (!btn) return false;
+    btn.scrollIntoView({ block: "center", behavior: "smooth" });
+    btn.classList.add("task-flash");
+    window.setTimeout(function () { btn.classList.remove("task-flash"); }, 1600);
+    // Move keyboard focus for accessibility without scrolling again.
+    try { btn.focus({ preventScroll: true }); } catch (e) { try { btn.focus(); } catch (e2) {} }
+    return true;
   }
 
   function clearList() {
@@ -776,6 +1006,78 @@
     }
   });
 
+  // ---------- Qur'an events ----------
+  if (quranFormEl) {
+    quranFormEl.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      ensureTodayFresh();
+      var res = validateQuranRange(quranStartEl ? quranStartEl.value : "", quranEndEl ? quranEndEl.value : "");
+      if (!res.ok) {
+        showQuranError(res.error);
+        if (quranStartEl) quranStartEl.focus();
+        return;
+      }
+      if (state.quran) {
+        try {
+          if (!window.confirm(STRINGS.quranReplaceConfirm)) return;
+        } catch (e) { return; }
+      }
+      hideQuranError();
+      createQuranPlan(res.start, res.end);
+      if (quranStartEl) quranStartEl.value = "";
+      if (quranEndEl) quranEndEl.value = "";
+      if (quranJumpEl) quranJumpEl.value = "";
+    });
+    if (quranStartEl) quranStartEl.addEventListener("input", hideQuranError);
+    if (quranEndEl) quranEndEl.addEventListener("input", hideQuranError);
+  }
+  if (quranGridEl) {
+    quranGridEl.addEventListener("click", function (ev) {
+      var btn = ev.target.closest("button[data-page]");
+      if (!btn || !quranGridEl.contains(btn)) return;
+      ensureTodayFresh();
+      if (!state.quran) return;
+      var page = parseQuranInput(btn.dataset.page);
+      if (page === null) return;
+      toggleQuranPage(page);
+    });
+  }
+  if (quranClearBtn) {
+    quranClearBtn.addEventListener("click", function () {
+      ensureTodayFresh();
+      if (!state.quran) return;
+      try {
+        if (!window.confirm(STRINGS.quranReplaceConfirm)) return;
+      } catch (e) { return; }
+      clearQuranPlan();
+      if (quranStartEl) quranStartEl.focus();
+    });
+  }
+  function handleQuranJump() {
+    ensureTodayFresh();
+    if (!state.quran || !quranJumpEl) return;
+    var page = parseQuranInput(quranJumpEl.value);
+    if (page === null || page < state.quran.startPage || page > state.quran.endPage) {
+      showQuranError(STRINGS.quranJumpError);
+      if (quranJumpEl) quranJumpEl.focus();
+      return;
+    }
+    hideQuranError();
+    jumpToQuranPage(page);
+  }
+  if (quranJumpBtn) quranJumpBtn.addEventListener("click", handleQuranJump);
+  if (quranJumpEl) {
+    quranJumpEl.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        handleQuranJump();
+      }
+    });
+    quranJumpEl.addEventListener("input", function () {
+      if (quranErrorEl && !quranErrorEl.hidden) hideQuranError();
+    });
+  }
+
   // ---------- Midnight rollover (no refresh required) ----------
   function startRolloverWatch() {
     window.setInterval(function () {
@@ -879,7 +1181,17 @@
       taskReminderState: taskReminderState,
       dueTasks: dueTasks,
       notificationBody: notificationBody,
-      getState: function () { return state; }
+      getState: function () { return state; },
+      QURAN_MIN: QURAN_MIN,
+      QURAN_MAX: QURAN_MAX,
+      isValidQuranPlan: isValidQuranPlan,
+      sanitizeQuranPlan: sanitizeQuranPlan,
+      validateQuranRange: validateQuranRange,
+      parseQuranInput: parseQuranInput,
+      quranStats: quranStats,
+      createQuranPlan: createQuranPlan,
+      clearQuranPlan: clearQuranPlan,
+      toggleQuranPage: toggleQuranPage
     };
   }
 })();
