@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="Fikra To-Do — a minimal daily to-do list with Arabic & English support and automatic midnight reset. Private, fast, local-only." />
+  <meta name="theme-color" content="#0f766e" />
+  <title>Fikra To-Do — Today's Tasks</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <a class="skip-link" href="#task-list-heading">Skip to tasks</a>
+
+  <div class="app">
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 12.5l5 5L20 6.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span class="brand-name">Fikra To-Do</span>
+      </div>
+      <p class="date-line">
+        <time id="current-date" datetime="">Loading date…</time>
+      </p>
+      <p class="today-badge">
+        <span class="dot" aria-hidden="true"></span>
+        Today's tasks
+      </p>
+    </header>
+
+    <main class="app-main">
+      <section class="composer-card" aria-labelledby="composer-heading">
+        <h2 id="composer-heading" class="visually-hidden">Add a new task</h2>
+        <form id="task-form" autocomplete="off" novalidate>
+          <label class="visually-hidden" for="task-input">New task</label>
+          <input
+            id="task-input"
+            name="task"
+            type="text"
+            dir="auto"
+            maxlength="500"
+            placeholder="What do you want to accomplish today?"
+            aria-describedby="form-error"
+            enterkeyhint="done"
+          />
+          <button id="add-btn" type="submit" class="btn-primary">
+            <span aria-hidden="true">+</span> Add
+          </button>
+        </form>
+        <p id="form-error" class="form-error" role="alert" hidden></p>
+        <p class="hint">Press <kbd>Enter</kbd> to add quickly · Tasks reset at midnight</p>
+      </section>
+
+      <section class="summary-card" aria-labelledby="summary-heading">
+        <h2 id="summary-heading" class="visually-hidden">Daily progress</h2>
+        <div class="summary-row">
+          <p id="summary-text" aria-live="polite">0 of 0 tasks completed</p>
+          <p id="summary-pct" class="summary-pct" aria-hidden="true">0%</p>
+        </div>
+        <div class="progress-track" role="progressbar" aria-label="Daily progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <p id="celebration" class="celebration" hidden>✓ All done. Well deserved.</p>
+      </section>
+
+      <section class="list-card" aria-labelledby="task-list-heading">
+        <h2 id="task-list-heading" class="list-heading">Today's list</h2>
+
+        <div id="empty-state" class="empty-state">
+          <div class="empty-icon" aria-hidden="true">○</div>
+          <p class="empty-title">No tasks yet</p>
+          <p class="empty-sub">Add your first task for today above to get started.</p>
+        </div>
+
+        <ul id="task-list" aria-label="Today's tasks"></ul>
+      </section>
+
+      <p id="storage-warning" class="storage-warning" hidden role="status"></p>
+    </main>
+
+    <footer class="app-footer">
+      <p>Private by design — tasks stay in this browser only.</p>
+    </footer>
+  </div>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
