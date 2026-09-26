@@ -1,30 +1,41 @@
-/* Fikra To-Do — Phase One + PWA/Reminders (§22–§35)
-   Sections: constants | date utils | storage | state + task ops | rendering |
-             reminders | install | events | init
-   Future i18n: all UI strings live in STRINGS so EN/AR toggle can be added later.
+/* Fikra To-Do — Modern Redesign (2026 UI/UX)
+   Sections:
+   1. Constants & Strings
+   2. Theme & Audio Engines
+   3. Confetti Celebration
+   4. Date & Time Utils
+   5. Storage & State Management
+   6. Task & Quran Operations
+   7. Rendering (Tasks, Summary, Quran, Filters)
+   8. Reminders & PWA Install
+   9. Events & Keybindings
+   10. Initialization & Test Seams
 */
 (function () {
   "use strict";
 
   var STORAGE_KEY = "fikra-todo-v1";
   var INSTALL_SEEN_KEY = "fikra-pwa-install-dismissed";
+  var THEME_KEY = "fikra-theme";
+  var SOUND_KEY = "fikra-sound";
+  var QURAN_COLLAPSED_KEY = "fikra-quran-collapsed";
   var MAX_TEXT_LENGTH = 500;
   var ROLLOVER_CHECK_MS = 30000;
   var REMINDER_CHECK_MS = 20000;
   var QURAN_MIN = 1;
   var QURAN_MAX = 604;
 
-  // Centralized UI strings (future localization point).
+  // Centralized UI strings
   var STRINGS = {
     emptyTaskError: "Please type a task before adding.",
     invalidTimeError: "That time doesn't look valid — pick a time or leave it empty.",
-    storageUnavailable: "Browser storage is unavailable — tasks will work for this session only and won't persist after reload.",
+    storageUnavailable: "Browser storage is unavailable — tasks will work for this session only.",
     summaryNone: "0 of 0 tasks completed",
     loadDateFallback: "Today",
-    reminderOn: "Reminders are on — you'll be notified at each task's time.",
+    reminderOn: "Reminders active — you'll be notified at each task's time.",
     reminderOff: "Enable notifications to get reminded at each task's time.",
-    reminderDenied: "Notifications are blocked — tasks still work. Re-enable them in your browser/site settings, then try again.",
-    reminderUnsupported: "This browser doesn't support notifications — tasks still work normally.",
+    reminderDenied: "Notifications blocked. Re-enable in site settings then try again.",
+    reminderUnsupported: "This browser doesn't support notifications — tasks work normally.",
     reminderGranted: "Reminders enabled ✓",
     notifDuePrefixEn: "🔔 It's time:",
     notifDuePrefixAr: "🔔 حان وقت:",
@@ -32,11 +43,14 @@
     quranEmptyError: "Enter a start and end page (1–604).",
     quranRangeError: "Pages must be between 1 and 604, with start ≤ end.",
     quranReplaceConfirm: "Replace today's revision plan? Completed pages for today will be cleared.",
-    quranCompleteMsg: "Mā shā’ Allāh! Today's revision is complete.",
-    quranJumpError: "Enter a page number within today's plan to jump to it."
+    quranCompleteMsg: "Mā shā’ Allāh! Today's revision is complete 🌿",
+    quranJumpError: "Enter a page number within today's plan to jump to it.",
+    clearCompletedConfirm: "Clear all completed tasks from today's list?",
+    quranMarkAllConfirm: "Mark all pages in today's revision as completed?",
+    quranResetAllConfirm: "Reset completion for all pages in today's revision?"
   };
 
-  // ---------- DOM ----------
+  // ---------- DOM Elements ----------
   var dateEl = document.getElementById("current-date");
   var formEl = document.getElementById("task-form");
   var inputEl = document.getElementById("task-input");
@@ -56,6 +70,7 @@
   var installFallbackEl = document.getElementById("install-fallback");
   var reminderBtn = document.getElementById("reminder-btn");
   var reminderStatusEl = document.getElementById("reminder-status");
+  var quranSectionEl = document.getElementById("quran-section");
   var quranFormEl = document.getElementById("quran-form");
   var quranStartEl = document.getElementById("quran-start");
   var quranEndEl = document.getElementById("quran-end");
@@ -70,9 +85,258 @@
   var quranClearBtn = document.getElementById("quran-clear");
   var quranJumpEl = document.getElementById("quran-jump");
   var quranJumpBtn = document.getElementById("quran-jump-btn");
+  var quranCollapseBtn = document.getElementById("quran-collapse-btn");
+  var quranToggleHeaderBtn = document.getElementById("quran-toggle-btn");
+  var quranMarkAllBtn = document.getElementById("quran-mark-all-btn");
+  var quranResetAllBtn = document.getElementById("quran-reset-all-btn");
+  var themeToggleBtn = document.getElementById("theme-toggle");
+  var soundToggleBtn = document.getElementById("sound-toggle");
+  var greetingTextEl = document.getElementById("greeting-text");
+  var statTotalEl = document.getElementById("stat-total-count");
+  var statActiveEl = document.getElementById("stat-active-count");
+  var statDoneEl = document.getElementById("stat-done-count");
+  var taskCountBadgeEl = document.getElementById("task-count-badge");
+  var filterTabsEl = document.querySelector(".filter-tabs");
+  var searchBarWrapEl = document.getElementById("search-bar-wrap");
+  var searchInputEl = document.getElementById("task-search-input");
+  var searchClearBtn = document.getElementById("task-search-clear");
+  var listFooterActionsEl = document.getElementById("list-footer-actions");
+  var clearCompletedBtn = document.getElementById("clear-completed-btn");
+  var composerCharCountEl = document.getElementById("composer-char-count");
+  var categoryPillsContainer = document.querySelector(".category-pills-row");
 
-  // ---------- Date utils ----------
-  // Local calendar key, e.g. "2026-09-26". Never UTC — must follow user's local day.
+  // Filter & Search active state
+  var currentFilter = "all"; // 'all' | 'active' | 'completed'
+  var searchQuery = "";
+  var selectedCategory = "";
+
+  // ---------- Theme Management ----------
+  var currentTheme = "system";
+  try {
+    currentTheme = window.localStorage.getItem(THEME_KEY) || "system";
+  } catch (e) { currentTheme = "system"; }
+
+  function applyTheme(theme) {
+    currentTheme = theme;
+    var html = document.documentElement;
+    if (theme === "system") {
+      var isDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      html.setAttribute("data-theme", isDark ? "dark" : "light");
+    } else {
+      html.setAttribute("data-theme", theme);
+    }
+    updateThemeIcon();
+    try { window.localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+  }
+
+  function updateThemeIcon() {
+    if (!themeToggleBtn) return;
+    var html = document.documentElement;
+    var activeTheme = html.getAttribute("data-theme");
+    var sun = themeToggleBtn.querySelector(".icon-sun");
+    var moon = themeToggleBtn.querySelector(".icon-moon");
+    if (sun && moon) {
+      if (activeTheme === "dark") {
+        sun.hidden = false;
+        moon.hidden = true;
+        themeToggleBtn.setAttribute("aria-label", "Switch to light theme");
+        themeToggleBtn.title = "Current: Dark theme (click for Light)";
+      } else {
+        sun.hidden = true;
+        moon.hidden = false;
+        themeToggleBtn.setAttribute("aria-label", "Switch to dark theme");
+        themeToggleBtn.title = "Current: Light theme (click for Dark)";
+      }
+    }
+  }
+
+  function cycleTheme() {
+    var html = document.documentElement;
+    var currentActive = html.getAttribute("data-theme");
+    if (currentActive === "dark") {
+      applyTheme("light");
+    } else {
+      applyTheme("dark");
+    }
+  }
+
+  if (window.matchMedia) {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
+      if (currentTheme === "system") applyTheme("system");
+    });
+  }
+
+  // ---------- Synthesized Web Audio Engine (0 dependencies) ----------
+  var soundEnabled = true;
+  try {
+    var storedSound = window.localStorage.getItem(SOUND_KEY);
+    if (storedSound !== null) soundEnabled = storedSound === "1";
+  } catch (e) { soundEnabled = true; }
+
+  var audioCtx = null;
+  function getAudioContext() {
+    if (typeof window === "undefined") return null;
+    var AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return null;
+    if (!audioCtx) {
+      try { audioCtx = new AudioContext(); } catch (e) { return null; }
+    }
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume().catch(function () {});
+    }
+    return audioCtx;
+  }
+
+  function playCheckSound() {
+    if (!soundEnabled) return;
+    var ctx = getAudioContext();
+    if (!ctx) return;
+    try {
+      var now = ctx.currentTime;
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(523.25, now); // C5
+      osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.12); // G5
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.16);
+    } catch (e) {}
+  }
+
+  function playUncheckSound() {
+    if (!soundEnabled) return;
+    var ctx = getAudioContext();
+    if (!ctx) return;
+    try {
+      var now = ctx.currentTime;
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(440, now); // A4
+      osc.frequency.exponentialRampToValueAtTime(329.63, now + 0.1); // E4
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.11);
+    } catch (e) {}
+  }
+
+  function playCelebrationFanfare() {
+    if (!soundEnabled) return;
+    var ctx = getAudioContext();
+    if (!ctx) return;
+    try {
+      var now = ctx.currentTime;
+      var notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+      notes.forEach(function (freq, i) {
+        var start = now + (i * 0.08);
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0.15, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.25);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.26);
+      });
+    } catch (e) {}
+  }
+
+  function updateSoundIcon() {
+    if (!soundToggleBtn) return;
+    var onIcon = soundToggleBtn.querySelector(".icon-sound-on");
+    var offIcon = soundToggleBtn.querySelector(".icon-sound-off");
+    if (onIcon && offIcon) {
+      onIcon.hidden = !soundEnabled;
+      offIcon.hidden = soundEnabled;
+      soundToggleBtn.title = soundEnabled ? "Sound enabled (click to mute)" : "Sound muted (click to unmute)";
+      soundToggleBtn.setAttribute("aria-label", soundEnabled ? "Mute audio" : "Unmute audio");
+    }
+  }
+
+  function toggleSound() {
+    soundEnabled = !soundEnabled;
+    try { window.localStorage.setItem(SOUND_KEY, soundEnabled ? "1" : "0"); } catch (e) {}
+    updateSoundIcon();
+    if (soundEnabled) playCheckSound();
+  }
+
+  // ---------- Confetti Celebration (Pure Canvas, 0 dependencies) ----------
+  var confettiActive = false;
+  function triggerConfetti() {
+    var canvas = document.getElementById("confetti-canvas");
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    var width = canvas.width = window.innerWidth;
+    var height = canvas.height = window.innerHeight;
+    var particles = [];
+    var colors = ["#0f766e", "#14b8a6", "#34d399", "#f59e0b", "#0ea5e9", "#f43f5e", "#a855f7"];
+    var count = 65;
+
+    for (var i = 0; i < count; i++) {
+      particles.push({
+        x: width * (0.3 + Math.random() * 0.4),
+        y: height * 0.4,
+        vx: (Math.random() - 0.5) * 12,
+        vy: -Math.random() * 12 - 4,
+        size: Math.random() * 7 + 4,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        rotation: Math.random() * 360,
+        rSpeed: (Math.random() - 0.5) * 10,
+        opacity: 1
+      });
+    }
+
+    confettiActive = true;
+    var startTime = Date.now();
+    function animate() {
+      if (!confettiActive) return;
+      var elapsed = Date.now() - startTime;
+      ctx.clearRect(0, 0, width, height);
+      var alive = false;
+
+      particles.forEach(function (p) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.35; // gravity
+        p.vx *= 0.98; // drag
+        p.rotation += p.rSpeed;
+        if (elapsed > 1200) {
+          p.opacity -= 0.02;
+        }
+        if (p.opacity > 0 && p.y < height + 20) {
+          alive = true;
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, p.opacity);
+          ctx.translate(p.x, p.y);
+          ctx.rotate((p.rotation * Math.PI) / 180);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+          ctx.restore();
+        }
+      });
+
+      if (alive && elapsed < 3500) {
+        requestAnimationFrame(animate);
+      } else {
+        confettiActive = false;
+        ctx.clearRect(0, 0, width, height);
+      }
+    }
+    requestAnimationFrame(animate);
+  }
+
+  // ---------- Date Utils ----------
   function getLocalDateKey(d) {
     var y = d.getFullYear();
     var m = String(d.getMonth() + 1).padStart(2, "0");
@@ -80,8 +344,6 @@
     return y + "-" + m + "-" + day;
   }
 
-  // Test seam: lets tests simulate another day without touching prod logic.
-  // Production always calls with `new Date()`. Tests may set window.__fikraDateOverride = "2026-09-27".
   function todayKey() {
     if (typeof window !== "undefined" && typeof window.__fikraDateOverride === "string" && window.__fikraDateOverride) {
       return window.__fikraDateOverride;
@@ -92,8 +354,8 @@
   function formatDisplayDate(now) {
     try {
       return new Intl.DateTimeFormat("en-US", {
-        weekday: "long",
-        month: "long",
+        weekday: "short",
+        month: "short",
         day: "numeric",
         year: "numeric"
       }).format(now);
@@ -102,7 +364,7 @@
     }
   }
 
-  // ---------- Time utils (optional per-task reminder, "HH:MM" 24h) ----------
+  // ---------- Time Utils ----------
   var TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
   function isValidTime(v) {
     return typeof v === "string" && TIME_RE.test(v);
@@ -121,7 +383,6 @@
   function containsArabic(s) {
     return /[\u0600-\u06FF]/.test(s || "");
   }
-  // "19:00" -> "7:00 PM" for chips; keeps native input value untouched.
   function formatTime12(hhmm) {
     if (!isValidTime(hhmm)) return "";
     var h = parseInt(hhmm.slice(0, 2), 10);
@@ -132,17 +393,16 @@
     return h12 + ":" + m + " " + suffix;
   }
 
-  // ---------- Storage ----------
+  // ---------- Storage & State ----------
   var memoryFallback = null;
   var storageOK = true;
 
-  function isValidTask(t, index) {
+  function isValidTask(t) {
     if (!t || typeof t.id !== "string" || typeof t.text !== "string" ||
         typeof t.completed !== "boolean" || typeof t.createdAt !== "number" ||
         typeof t.order !== "number") {
       return false;
     }
-    // Optional timed-reminder fields (must be well-formed when present).
     if (t.time !== undefined && t.time !== null && !isValidTime(t.time)) return false;
     if (t.date !== undefined && typeof t.date !== "string") return false;
     if (t.reminderTriggered !== undefined && typeof t.reminderTriggered !== "boolean") return false;
@@ -153,7 +413,6 @@
     return { date: dateKey, tasks: [], quran: null };
   }
 
-  // Qur'an plan validation: { date, startPage, endPage, completed:[...], createdAt }.
   function isValidQuranPlan(q) {
     if (!q || typeof q !== "object") return false;
     if (typeof q.date !== "string" || !q.date) return false;
@@ -167,8 +426,6 @@
 
   function sanitizeQuranPlan(q, dateKey) {
     if (!isValidQuranPlan(q)) return null;
-    // Only today's plan is active; yesterday's plan is retired by ensureTodayFresh,
-    // but also guard here against stale/mismatched dates.
     if (q.date !== dateKey) return null;
     var seen = {};
     var clean = [];
@@ -204,33 +461,27 @@
       if (!parsed || typeof parsed.date !== "string" || !Array.isArray(parsed.tasks)) {
         return blankState(key);
       }
-      // Strict validation: drop malformed entries instead of crashing.
-      // In-place migration: old tasks without timed fields get defaults.
       var clean = parsed.tasks.filter(isValidTask).map(function (t) {
         return {
           id: t.id,
           text: t.text.slice(0, MAX_TEXT_LENGTH),
           date: (typeof t.date === "string" && t.date) || parsed.date || key,
           time: normalizeTime(t.time === undefined ? null : t.time),
+          category: typeof t.category === "string" ? t.category : "",
           completed: t.completed,
           createdAt: t.createdAt,
           order: t.order,
           reminderTriggered: t.reminderTriggered === true
         };
       });
-      // Stable order.
       clean.sort(function (a, b) { return a.order - b.order; });
-      // Qur'an plan migrates safely: missing/invalid/stale -> null (no plan), tasks untouched.
       var quran = sanitizeQuranPlan(parsed.quran === undefined ? null : parsed.quran, parsed.date);
-      // If stored day is already stale, today's first ensureTodayFresh() will retire it;
-      // still return as-is here so the date comparison can trigger the reset.
       if (parsed.date !== key) {
         if (quran && quran.date !== parsed.date) quran = null;
         return { date: parsed.date, tasks: clean, quran: quran };
       }
       return { date: parsed.date, tasks: clean, quran: quran };
     } catch (e) {
-      // Corrupted JSON — start fresh rather than break.
       return blankState(key);
     }
   }
@@ -250,15 +501,13 @@
   }
 
   function showStorageWarning() {
+    if (!storageWarningEl) return;
     storageWarningEl.textContent = STRINGS.storageUnavailable;
     storageWarningEl.hidden = false;
   }
 
-  // ---------- State + task ops ----------
   var state = loadState();
 
-  // Daily reset: calendar-date comparison, not a 24h timer.
-  // If stored date != today, previous day's list is retired and a fresh list begins.
   function ensureTodayFresh() {
     var key = todayKey();
     if (state.date !== key) {
@@ -272,7 +521,7 @@
 
   function makeId() {
     if (typeof crypto !== "undefined" && crypto.randomUUID) {
-      try { return crypto.randomUUID(); } catch (e) { /* fall through */ }
+      try { return crypto.randomUUID(); } catch (e) {}
     }
     return "t-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
   }
@@ -286,23 +535,26 @@
     return max + 1;
   }
 
-  function addTask(rawText, rawTime) {
+  // ---------- Task Operations ----------
+  function addTask(rawText, rawTime, rawCategory) {
     var text = (rawText || "").trim();
     if (!text) return { ok: false, error: STRINGS.emptyTaskError };
     var time = normalizeTime(rawTime === undefined ? (timeEl && timeEl.value ? timeEl.value : null) : rawTime);
     if (rawTime !== undefined && rawTime !== null && rawTime !== "" && time === null) {
       return { ok: false, error: STRINGS.invalidTimeError };
     }
-    // If the visible time field holds garbage the browser didn't sanitize, reject kindly.
     if (rawTime === undefined && timeEl && timeEl.value && !isValidTime(timeEl.value)) {
       return { ok: false, error: STRINGS.invalidTimeError };
     }
     text = text.slice(0, MAX_TEXT_LENGTH);
+    var category = typeof rawCategory === "string" ? rawCategory : selectedCategory;
+
     state.tasks.push({
       id: makeId(),
       text: text,
       date: todayKey(),
       time: time,
+      category: category,
       completed: false,
       createdAt: Date.now(),
       order: nextOrder(),
@@ -320,14 +572,16 @@
     if (!t) return;
     t.completed = !t.completed;
     if (t.completed) {
-      // A completed task must never notify again.
       t.reminderTriggered = true;
-    } else if (t.time && t.date === todayKey()) {
-      // Re-armed only if its time is still in the future today.
-      try {
-        var mins = minutesOf(t.time);
-        if (nowMinutes(new Date()) < mins) t.reminderTriggered = false;
-      } catch (e) { /* keep flag as-is */ }
+      playCheckSound();
+    } else {
+      playUncheckSound();
+      if (t.time && t.date === todayKey()) {
+        try {
+          var mins = minutesOf(t.time);
+          if (nowMinutes(new Date()) < mins) t.reminderTriggered = false;
+        } catch (e) {}
+      }
     }
     saveState(state);
     renderTasks();
@@ -340,7 +594,7 @@
     saveState(state);
     renderTasks();
     renderSummary();
-    inputEl.focus({ preventScroll: true });
+    if (inputEl) inputEl.focus({ preventScroll: true });
   }
 
   function commitEdit(id, rawText) {
@@ -354,6 +608,16 @@
     return { ok: true };
   }
 
+  function clearCompletedTasks() {
+    var hasCompleted = state.tasks.some(function (t) { return t.completed; });
+    if (!hasCompleted) return;
+    if (!window.confirm(STRINGS.clearCompletedConfirm)) return;
+    state.tasks = state.tasks.filter(function (t) { return !t.completed; });
+    saveState(state);
+    renderTasks();
+    renderSummary();
+  }
+
   function findTask(id) {
     for (var i = 0; i < state.tasks.length; i++) {
       if (state.tasks[i].id === id) return state.tasks[i];
@@ -361,12 +625,11 @@
     return null;
   }
 
-  // ---------- Qur'an revision ops (daily plan, 1–604) ----------
+  // ---------- Qur'an Operations ----------
   function parseQuranInput(v) {
     if (v === null || v === undefined) return null;
     var s = String(v).trim();
     if (!s) return null;
-    // Accept Arabic-Indic digits too.
     s = s.replace(/[\u0660-\u0669]/g, function (d) { return String(d.charCodeAt(0) - 0x0660); })
          .replace(/[\u06F0-\u06F9]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); });
     if (!/^\d+$/.test(s)) return null;
@@ -417,16 +680,49 @@
     if (!state.quran) return;
     if (!Number.isInteger(page) || page < state.quran.startPage || page > state.quran.endPage) return;
     var idx = state.quran.completed.indexOf(page);
-    if (idx === -1) state.quran.completed.push(page);
-    else state.quran.completed.splice(idx, 1);
+    var wasCompleted = idx !== -1;
+    if (!wasCompleted) {
+      state.quran.completed.push(page);
+      playCheckSound();
+    } else {
+      state.quran.completed.splice(idx, 1);
+      playUncheckSound();
+    }
     state.quran.completed.sort(function (a, b) { return a - b; });
     saveState(state);
     renderQuranStats();
     updateQuranButton(page);
+    var s = quranStats();
+    if (s.total > 0 && s.done === s.total && !wasCompleted) {
+      playCelebrationFanfare();
+      triggerConfetti();
+    }
   }
 
+  function markAllQuranPages() {
+    if (!state.quran) return;
+    if (!window.confirm(STRINGS.quranMarkAllConfirm)) return;
+    var all = [];
+    for (var p = state.quran.startPage; p <= state.quran.endPage; p++) {
+      all.push(p);
+    }
+    state.quran.completed = all;
+    saveState(state);
+    renderQuran();
+    playCelebrationFanfare();
+    triggerConfetti();
+  }
+
+  function resetAllQuranPages() {
+    if (!state.quran) return;
+    if (!window.confirm(STRINGS.quranResetAllConfirm)) return;
+    state.quran.completed = [];
+    saveState(state);
+    renderQuran();
+  }
+
+  // ---------- Reminder Helpers ----------
   function taskReminderState(task, now) {
-    // Upcoming | Due | Completed | Overdue (timed tasks only; untimed -> "none").
     if (!task.time) return "none";
     if (task.completed) return "completed";
     if (task.date !== todayKey()) return "upcoming";
@@ -442,15 +738,50 @@
     return nowMinutes(now || new Date()) > minutesOf(task.time);
   }
 
-  // ---------- Rendering (safe: textContent only, never innerHTML with user text) ----------
+  // ---------- UI Rendering ----------
   function makeTimeChip(task) {
     var chip = document.createElement("span");
     chip.className = "task-time";
     chip.setAttribute("dir", "ltr");
-    chip.textContent = "⏰ " + formatTime12(task.time);
     var st = taskReminderState(task, new Date());
     chip.setAttribute("data-state", st);
+
+    var iconSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    iconSvg.setAttribute("width", "13");
+    iconSvg.setAttribute("height", "13");
+    iconSvg.setAttribute("viewBox", "0 0 24 24");
+    iconSvg.setAttribute("fill", "none");
+    iconSvg.setAttribute("stroke", "currentColor");
+    iconSvg.setAttribute("stroke-width", "2.2");
+    iconSvg.setAttribute("stroke-linecap", "round");
+    iconSvg.setAttribute("stroke-linejoin", "round");
+    iconSvg.setAttribute("aria-hidden", "true");
+    var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("cx", "12"); c.setAttribute("cy", "12"); c.setAttribute("r", "10");
+    var poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    poly.setAttribute("points", "12 6 12 12 16 14");
+    iconSvg.appendChild(c);
+    iconSvg.appendChild(poly);
+
+    var textSpan = document.createElement("span");
+    textSpan.textContent = formatTime12(task.time) + (st === "overdue" ? " (Overdue)" : "");
+
+    chip.appendChild(iconSvg);
+    chip.appendChild(textSpan);
     chip.setAttribute("aria-label", "Reminder at " + formatTime12(task.time) + ", " + st);
+    return chip;
+  }
+
+  function makeCategoryChip(category) {
+    var chip = document.createElement("span");
+    chip.className = "task-category-chip";
+    var labels = {
+      deen: "📖 Deen",
+      work: "💼 Work",
+      study: "📚 Study",
+      personal: "🌱 Personal"
+    };
+    chip.textContent = labels[category] || category;
     return chip;
   }
 
@@ -462,143 +793,109 @@
   }
 
   function renderDate() {
+    if (!dateEl) return;
     var now = new Date();
-    var label = formatDisplayDate(now);
-    dateEl.textContent = label;
+    dateEl.textContent = formatDisplayDate(now);
     dateEl.setAttribute("datetime", getLocalDateKey(now));
   }
 
+  var previousCompletedAll = false;
   function renderSummary() {
     var total = state.tasks.length;
     var done = state.tasks.filter(function (t) { return t.completed; }).length;
+    var active = total - done;
+
+    if (statTotalEl) statTotalEl.textContent = String(total);
+    if (statActiveEl) statActiveEl.textContent = String(active);
+    if (statDoneEl) statDoneEl.textContent = String(done);
+    if (taskCountBadgeEl) taskCountBadgeEl.textContent = String(total);
+
     if (total === 0) {
-      summaryTextEl.textContent = STRINGS.summaryNone;
+      if (summaryTextEl) summaryTextEl.textContent = STRINGS.summaryNone;
+      if (greetingTextEl) greetingTextEl.textContent = "Start Fresh Today ✨";
     } else {
-      summaryTextEl.textContent = done + " of " + total + " task" + (total === 1 ? "" : "s") + " completed";
+      if (summaryTextEl) summaryTextEl.textContent = done + " of " + total + " task" + (total === 1 ? "" : "s") + " completed";
+      if (greetingTextEl) {
+        if (done === total) {
+          greetingTextEl.textContent = "Outstanding Achievement! 🎉";
+        } else if (done >= Math.ceil(total / 2)) {
+          greetingTextEl.textContent = "More than halfway there! 💪";
+        } else {
+          greetingTextEl.textContent = "Building Momentum 🚀";
+        }
+      }
     }
+
     var pct = total === 0 ? 0 : Math.round((done / total) * 100);
-    summaryPctEl.textContent = pct + "%";
-    progressFillEl.style.width = pct + "%";
-    progressBarEl.setAttribute("aria-valuenow", String(pct));
+    if (summaryPctEl) summaryPctEl.textContent = pct + "%";
+    if (progressFillEl) progressFillEl.style.width = pct + "%";
+    if (progressBarEl) progressBarEl.setAttribute("aria-valuenow", String(pct));
+
     var allDone = total > 0 && done === total;
-    celebrationEl.hidden = !allDone;
-  }
+    if (celebrationEl) celebrationEl.hidden = !allDone;
 
-  // ---------- Qur'an rendering ----------
-  function showQuranError(msg) {
-    if (!quranErrorEl) return;
-    quranErrorEl.textContent = msg;
-    quranErrorEl.hidden = false;
-  }
-  function hideQuranError() {
-    if (!quranErrorEl) return;
-    quranErrorEl.textContent = "";
-    quranErrorEl.hidden = true;
-  }
-
-  function renderQuran() {
-    // Graceful no-op if markup is missing (e.g. older cached index.html).
-    if (!quranFormEl || !quranActiveEl || !quranGridEl) return;
-    var hasPlan = !!state.quran;
-    quranFormEl.hidden = hasPlan;
-    quranActiveEl.hidden = !hasPlan;
-    if (quranClearBtn) quranClearBtn.hidden = !hasPlan;
-    if (!hasPlan) {
-      hideQuranError();
-      return;
+    // Trigger celebration once when reaching 100%
+    if (allDone && !previousCompletedAll && total > 0) {
+      playCelebrationFanfare();
+      triggerConfetti();
     }
-    // Rebuild grid efficiently with a fragment (604 buttons max — fine without virtualization).
-    while (quranGridEl.firstChild) quranGridEl.removeChild(quranGridEl.firstChild);
-    var doneSet = {};
-    state.quran.completed.forEach(function (p) { doneSet[p] = true; });
-    var frag = document.createDocumentFragment();
-    for (var p = state.quran.startPage; p <= state.quran.endPage; p++) {
-      frag.appendChild(makeQuranButton(p, !!doneSet[p]));
+    previousCompletedAll = allDone;
+
+    // Show/hide list footer actions (e.g. Clear Completed)
+    if (listFooterActionsEl) {
+      listFooterActionsEl.hidden = done === 0;
     }
-    quranGridEl.appendChild(frag);
-    renderQuranStats();
-  }
-
-  function makeQuranButton(page, completed) {
-    var btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "quran-page" + (completed ? " completed" : "");
-    btn.setAttribute("role", "listitem");
-    btn.setAttribute("aria-pressed", completed ? "true" : "false");
-    btn.setAttribute("aria-label", (completed ? "Mark page " : "Mark page ") + page + (completed ? " as not completed" : " as completed"));
-    btn.dataset.page = String(page);
-    var check = document.createElement("span");
-    check.className = "quran-check";
-    check.setAttribute("aria-hidden", "true");
-    check.textContent = completed ? "✓" : "";
-    var num = document.createElement("span");
-    num.setAttribute("dir", "ltr");
-    num.textContent = String(page);
-    btn.appendChild(check);
-    btn.appendChild(num);
-    return btn;
-  }
-
-  function renderQuranStats() {
-    if (!state.quran || !quranRangeEl) return;
-    var s = quranStats();
-    quranRangeEl.textContent = "Today's Revision · Pages " + state.quran.startPage + "–" + state.quran.endPage;
-    if (quranProgressLabelEl) {
-      quranProgressLabelEl.textContent = s.done + " / " + s.total + " pages · " + s.pct + "%";
+    // Show/hide search bar when more than 3 tasks exist
+    if (searchBarWrapEl) {
+      searchBarWrapEl.hidden = total < 3;
     }
-    if (quranProgressFillEl) quranProgressFillEl.style.width = s.pct + "%";
-    if (quranProgressBarEl) quranProgressBarEl.setAttribute("aria-valuenow", String(s.pct));
-    if (quranCompleteEl) {
-      var allDone = s.total > 0 && s.done === s.total;
-      quranCompleteEl.hidden = !allDone;
-      if (allDone) quranCompleteEl.textContent = STRINGS.quranCompleteMsg;
-    }
-    if (quranJumpEl) {
-      quranJumpEl.min = String(state.quran.startPage);
-      quranJumpEl.max = String(state.quran.endPage);
-    }
-  }
-
-  function updateQuranButton(page) {
-    if (!quranGridEl) return;
-    var sel = 'button[data-page="' + String(page) + '"]';
-    var btn = quranGridEl.querySelector(sel);
-    if (!btn || !state.quran) return;
-    var completed = state.quran.completed.indexOf(page) !== -1;
-    btn.classList.toggle("completed", completed);
-    btn.setAttribute("aria-pressed", completed ? "true" : "false");
-    btn.setAttribute("aria-label", "Mark page " + page + (completed ? " as not completed" : " as completed"));
-    var check = btn.querySelector(".quran-check");
-    if (check) check.textContent = completed ? "✓" : "";
-  }
-
-  function jumpToQuranPage(page) {
-    if (!quranGridEl) return false;
-    var btn = quranGridEl.querySelector('button[data-page="' + String(page) + '"]');
-    if (!btn) return false;
-    btn.scrollIntoView({ block: "center", behavior: "smooth" });
-    btn.classList.add("task-flash");
-    window.setTimeout(function () { btn.classList.remove("task-flash"); }, 1600);
-    // Move keyboard focus for accessibility without scrolling again.
-    try { btn.focus({ preventScroll: true }); } catch (e) { try { btn.focus(); } catch (e2) {} }
-    return true;
-  }
-
-  function clearList() {
-    while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
   }
 
   function renderTasks() {
-    clearList();
-    var isEmpty = state.tasks.length === 0;
-    emptyStateEl.style.display = isEmpty ? "" : "none";
+    while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
 
-    state.tasks.forEach(function (task) {
+    var filteredTasks = state.tasks.filter(function (t) {
+      // 1. Filter Tab
+      if (currentFilter === "active" && t.completed) return false;
+      if (currentFilter === "completed" && !t.completed) return false;
+      // 2. Search Query
+      if (searchQuery) {
+        var q = searchQuery.toLowerCase();
+        var match = t.text.toLowerCase().indexOf(q) !== -1;
+        if (!match && t.category && t.category.toLowerCase().indexOf(q) !== -1) match = true;
+        if (!match) return false;
+      }
+      return true;
+    });
+
+    var isEmpty = filteredTasks.length === 0;
+    if (emptyStateEl) {
+      emptyStateEl.style.display = isEmpty ? "flex" : "none";
+      var emptyTitle = emptyStateEl.querySelector(".empty-title");
+      var emptySub = emptyStateEl.querySelector(".empty-sub");
+      if (emptyTitle && emptySub) {
+        if (state.tasks.length === 0) {
+          emptyTitle.textContent = "All clear for today";
+          emptySub.textContent = "What's on your mind? Add your primary tasks above to build momentum.";
+        } else if (searchQuery) {
+          emptyTitle.textContent = "No matching tasks";
+          emptySub.textContent = "Try searching for something else or clear the search query.";
+        } else if (currentFilter === "completed") {
+          emptyTitle.textContent = "No completed tasks yet";
+          emptySub.textContent = "Check off tasks as you finish them today!";
+        } else if (currentFilter === "active") {
+          emptyTitle.textContent = "All tasks completed!";
+          emptySub.textContent = "You've finished all your active tasks for today. Great job!";
+        }
+      }
+    }
+
+    filteredTasks.forEach(function (task) {
       var li = document.createElement("li");
       li.className = "task-item" + (task.completed ? " completed" : "") + (isOverdue(task, new Date()) ? " overdue" : "");
       li.dataset.id = task.id;
 
-      // Completion toggle
+      // Completion toggle button
       var check = document.createElement("button");
       check.type = "button";
       check.className = "check-btn";
@@ -611,7 +908,7 @@
       box.textContent = task.completed ? "✓" : "";
       check.appendChild(box);
 
-      // Text + optional time chip (dir=auto handles Arabic/English/mixed per-item)
+      // Task content
       var content = document.createElement("div");
       content.className = "task-content";
       var span = document.createElement("span");
@@ -619,11 +916,17 @@
       span.setAttribute("dir", "auto");
       span.textContent = task.text;
       content.appendChild(span);
-      if (task.time) {
-        content.appendChild(makeTimeChip(task));
+
+      // Meta chips row (category, reminder time)
+      if (task.time || task.category) {
+        var metaRow = document.createElement("div");
+        metaRow.className = "task-meta-row";
+        if (task.category) metaRow.appendChild(makeCategoryChip(task.category));
+        if (task.time) metaRow.appendChild(makeTimeChip(task));
+        content.appendChild(metaRow);
       }
 
-      // Actions
+      // Actions (Edit, Delete with crisp SVGs)
       var actions = document.createElement("div");
       actions.className = "task-actions";
 
@@ -633,7 +936,7 @@
       edit.dataset.action = "edit";
       edit.setAttribute("aria-label", "Edit task");
       edit.title = "Edit";
-      edit.textContent = "✎";
+      edit.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>';
 
       var del = document.createElement("button");
       del.type = "button";
@@ -641,7 +944,7 @@
       del.dataset.action = "delete";
       del.setAttribute("aria-label", "Delete task");
       del.title = "Delete";
-      del.textContent = "🗑";
+      del.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
 
       actions.appendChild(edit);
       actions.appendChild(del);
@@ -654,8 +957,7 @@
   }
 
   function renderEditMode(li, task) {
-    clearList();
-    // Rebuild list with the editing row in place (keeps order stable).
+    while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
     state.tasks.forEach(function (t) {
       var row = document.createElement("li");
       row.className = "task-item" + (t.completed ? " completed" : "");
@@ -689,7 +991,6 @@
         wrap.appendChild(save);
         wrap.appendChild(cancel);
         row.appendChild(wrap);
-
         listEl.appendChild(row);
 
         editInput.focus();
@@ -700,7 +1001,6 @@
             ev.preventDefault();
             var res = commitEdit(t.id, editInput.value);
             if (!res.ok && res.error) {
-              editInput.setAttribute("aria-invalid", "true");
               showError(res.error);
               editInput.focus();
             } else {
@@ -711,16 +1011,13 @@
           }
         });
       } else {
-        // Non-editing rows rendered normally.
+        // Render normal task row while editing one item
         var check = document.createElement("button");
         check.type = "button";
         check.className = "check-btn";
         check.dataset.action = "toggle";
-        check.setAttribute("aria-label", t.completed ? "Mark as not completed" : "Mark as completed");
-        check.setAttribute("aria-pressed", t.completed ? "true" : "false");
         var box = document.createElement("span");
         box.className = "check-box";
-        box.setAttribute("aria-hidden", "true");
         box.textContent = t.completed ? "✓" : "";
         check.appendChild(box);
 
@@ -731,50 +1028,139 @@
         span.setAttribute("dir", "auto");
         span.textContent = t.text;
         content.appendChild(span);
-        if (t.time) content.appendChild(makeTimeChip(t));
-        row.className = "task-item" + (t.completed ? " completed" : "") + (isOverdue(t, new Date()) ? " overdue" : "");
-
-        var actions = document.createElement("div");
-        actions.className = "task-actions";
-        var editBtn = document.createElement("button");
-        editBtn.type = "button";
-        editBtn.className = "icon-btn";
-        editBtn.dataset.action = "edit";
-        editBtn.setAttribute("aria-label", "Edit task");
-        editBtn.textContent = "✎";
-        var delBtn = document.createElement("button");
-        delBtn.type = "button";
-        delBtn.className = "icon-btn danger";
-        delBtn.dataset.action = "delete";
-        delBtn.setAttribute("aria-label", "Delete task");
-        delBtn.textContent = "🗑";
-        actions.appendChild(editBtn);
-        actions.appendChild(delBtn);
+        if (t.time || t.category) {
+          var metaRow = document.createElement("div");
+          metaRow.className = "task-meta-row";
+          if (t.category) metaRow.appendChild(makeCategoryChip(t.category));
+          if (t.time) metaRow.appendChild(makeTimeChip(t));
+          content.appendChild(metaRow);
+        }
 
         row.appendChild(check);
         row.appendChild(content);
-        row.appendChild(actions);
         listEl.appendChild(row);
       }
     });
-    void li; // keep signature stable
+    void li;
+  }
+
+  // ---------- Qur'an Rendering ----------
+  function showQuranError(msg) {
+    if (!quranErrorEl) return;
+    quranErrorEl.textContent = msg;
+    quranErrorEl.hidden = false;
+  }
+  function hideQuranError() {
+    if (!quranErrorEl) return;
+    quranErrorEl.textContent = "";
+    quranErrorEl.hidden = true;
+  }
+
+  function renderQuran() {
+    if (!quranFormEl || !quranActiveEl || !quranGridEl) return;
+    var hasPlan = !!state.quran;
+    quranFormEl.hidden = hasPlan;
+    quranActiveEl.hidden = !hasPlan;
+    if (quranClearBtn) quranClearBtn.hidden = !hasPlan;
+    if (!hasPlan) {
+      hideQuranError();
+      return;
+    }
+    while (quranGridEl.firstChild) quranGridEl.removeChild(quranGridEl.firstChild);
+    var doneSet = {};
+    state.quran.completed.forEach(function (p) { doneSet[p] = true; });
+    var frag = document.createDocumentFragment();
+    for (var p = state.quran.startPage; p <= state.quran.endPage; p++) {
+      frag.appendChild(makeQuranButton(p, !!doneSet[p]));
+    }
+    quranGridEl.appendChild(frag);
+    renderQuranStats();
+  }
+
+  function makeQuranButton(page, completed) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "quran-page" + (completed ? " completed" : "");
+    btn.setAttribute("role", "listitem");
+    btn.setAttribute("aria-pressed", completed ? "true" : "false");
+    btn.setAttribute("aria-label", "Mark page " + page + (completed ? " as not completed" : " as completed"));
+    btn.dataset.page = String(page);
+
+    var check = document.createElement("span");
+    check.className = "quran-check";
+    check.setAttribute("aria-hidden", "true");
+    check.textContent = completed ? "✓" : "";
+
+    var num = document.createElement("span");
+    num.setAttribute("dir", "ltr");
+    num.textContent = String(page);
+
+    btn.appendChild(check);
+    btn.appendChild(num);
+    return btn;
+  }
+
+  function renderQuranStats() {
+    if (!state.quran || !quranRangeEl) return;
+    var s = quranStats();
+    quranRangeEl.textContent = "Today's Revision · Pages " + state.quran.startPage + "–" + state.quran.endPage;
+    if (quranProgressLabelEl) {
+      quranProgressLabelEl.textContent = s.done + " / " + s.total + " pages (" + s.pct + "%)";
+    }
+    if (quranProgressFillEl) quranProgressFillEl.style.width = s.pct + "%";
+    if (quranProgressBarEl) quranProgressBarEl.setAttribute("aria-valuenow", String(s.pct));
+    if (quranCompleteEl) {
+      var allDone = s.total > 0 && s.done === s.total;
+      quranCompleteEl.hidden = !allDone;
+      if (allDone) quranCompleteEl.textContent = STRINGS.quranCompleteMsg;
+    }
+    if (quranJumpEl) {
+      quranJumpEl.min = String(state.quran.startPage);
+      quranJumpEl.max = String(state.quran.endPage);
+    }
+  }
+
+  function updateQuranButton(page) {
+    if (!quranGridEl) return;
+    var btn = quranGridEl.querySelector('button[data-page="' + String(page) + '"]');
+    if (!btn || !state.quran) return;
+    var completed = state.quran.completed.indexOf(page) !== -1;
+    btn.classList.toggle("completed", completed);
+    btn.setAttribute("aria-pressed", completed ? "true" : "false");
+    btn.setAttribute("aria-label", "Mark page " + page + (completed ? " as not completed" : " as completed"));
+    var check = btn.querySelector(".quran-check");
+    if (check) check.textContent = completed ? "✓" : "";
+  }
+
+  function jumpToQuranPage(page) {
+    if (!quranGridEl) return false;
+    var btn = quranGridEl.querySelector('button[data-page="' + String(page) + '"]');
+    if (!btn) return false;
+    btn.scrollIntoView({ block: "center", behavior: "smooth" });
+    btn.classList.add("task-flash");
+    window.setTimeout(function () { btn.classList.remove("task-flash"); }, 1800);
+    try { btn.focus({ preventScroll: true }); } catch (e) { try { btn.focus(); } catch (e2) {} }
+    return true;
   }
 
   // ---------- Errors ----------
   function showError(msg) {
+    if (!errorEl) return;
     errorEl.textContent = msg;
     errorEl.hidden = false;
-    inputEl.classList.remove("input-shake");
-    // Restart shake animation.
-    void inputEl.offsetWidth;
-    inputEl.classList.add("input-shake");
+    if (inputEl) {
+      inputEl.classList.remove("input-shake");
+      void inputEl.offsetWidth;
+      inputEl.classList.add("input-shake");
+    }
   }
   function hideError() {
+    if (!errorEl) return;
     errorEl.textContent = "";
     errorEl.hidden = true;
   }
 
-  // ---------- Reminders (Notification API + Service Worker) ----------
+  // ---------- Reminders & Service Worker ----------
   function notificationsSupported() {
     return (typeof window !== "undefined" && ("Notification" in window)) ||
       (typeof navigator !== "undefined" && "setAppBadge" in navigator);
@@ -791,20 +1177,21 @@
   function renderReminderBar() {
     if (!reminderBtn || !reminderStatusEl) return;
     var p = permissionState();
+    var span = reminderBtn.querySelector("span");
     if (p === "unsupported") {
       reminderStatusEl.textContent = STRINGS.reminderUnsupported;
       reminderBtn.hidden = true;
     } else if (p === "granted") {
       reminderStatusEl.textContent = STRINGS.reminderOn;
-      reminderBtn.textContent = "Reminders on ✓";
+      if (span) span.textContent = "Reminders on ✓";
       reminderBtn.disabled = true;
     } else if (p === "denied") {
       reminderStatusEl.textContent = STRINGS.reminderDenied;
-      reminderBtn.textContent = "Try enabling again 🔔";
+      if (span) span.textContent = "Try enabling again 🔔";
       reminderBtn.disabled = false;
     } else {
       reminderStatusEl.textContent = STRINGS.reminderOff;
-      reminderBtn.textContent = "Enable Reminders 🔔";
+      if (span) span.textContent = "Enable Reminders";
       reminderBtn.disabled = false;
     }
   }
@@ -825,7 +1212,6 @@
   function fireNotification(task) {
     var title = STRINGS.appName;
     var body = notificationBody(task);
-    // Prefer persistent service-worker notification (works for installed PWA on Android).
     try {
       if (navigator.serviceWorker && navigator.serviceWorker.ready) {
         navigator.serviceWorker.ready.then(function (reg) {
@@ -837,18 +1223,18 @@
               icon: "icons/icon-192.png",
               badge: "icons/favicon-32.png"
             }).catch(function () {
-              try { new Notification(title, { body: body, tag: "fikra-" + task.id }); } catch (e) { /* ignore */ }
+              try { new Notification(title, { body: body, tag: "fikra-" + task.id }); } catch (e) {}
             });
           } else {
-            try { new Notification(title, { body: body, tag: "fikra-" + task.id }); } catch (e) { /* ignore */ }
+            try { new Notification(title, { body: body, tag: "fikra-" + task.id }); } catch (e) {}
           }
         }).catch(function () {
-          try { new Notification(title, { body: body, tag: "fikra-" + task.id }); } catch (e) { /* ignore */ }
+          try { new Notification(title, { body: body, tag: "fikra-" + task.id }); } catch (e) {}
         });
       } else {
-        try { new Notification(title, { body: body }); } catch (e) { /* ignore */ }
+        try { new Notification(title, { body: body }); } catch (e) {}
       }
-    } catch (e) { /* notifications unavailable — task list still updates */ }
+    } catch (e) {}
   }
 
   function updateBadge() {
@@ -858,15 +1244,13 @@
         if (count > 0) navigator.setAppBadge(count).catch(function () {});
         else if ("clearAppBadge" in navigator) navigator.clearAppBadge().catch(function () {});
       }
-    } catch (e) { /* badges unsupported — ignore */ }
+    } catch (e) {}
   }
 
   function checkDueReminders(now) {
     now = now || new Date();
-    // Midnight boundary first: never fire yesterday's reminders.
     if (ensureTodayFresh()) return;
     if (permissionState() !== "granted") {
-      // Still refresh overdue visuals even without permission.
       renderTasks();
       return;
     }
@@ -907,13 +1291,13 @@
     }
   }
 
-  // ---------- PWA install ----------
+  // ---------- PWA Install ----------
   var deferredPrompt = null;
   function isStandalone() {
     try {
       if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
-      if (window.navigator.standalone === true) return true; // iOS
-    } catch (e) { /* ignore */ }
+      if (window.navigator.standalone === true) return true;
+    } catch (e) {}
     return false;
   }
   function dismissedBefore() {
@@ -921,7 +1305,6 @@
   }
   function initInstall() {
     if (!installSectionEl) return;
-    // Never prompt inside the installed app.
     if (isStandalone()) {
       installSectionEl.hidden = true;
       return;
@@ -939,13 +1322,9 @@
       installSectionEl.hidden = true;
       try { window.localStorage.setItem(INSTALL_SEEN_KEY, "1"); } catch (e) {}
     });
-    // Browser without programmatic prompt: show graceful manual instructions
-    // (but only outside standalone, and only once per user).
     if (!dismissedBefore()) {
       window.setTimeout(function () {
         if (!deferredPrompt && !isStandalone() && canPrompt === false) {
-          // Chrome/Edge/Samsung will still fire beforeinstallprompt when eligible;
-          // show fallback text so users know the menu path.
           installSectionEl.hidden = false;
           if (installFallbackEl) installFallbackEl.hidden = false;
           if (installBtn) installBtn.hidden = true;
@@ -955,58 +1334,122 @@
     void canPrompt;
   }
 
-  // ---------- Events ----------
-  formEl.addEventListener("submit", function (ev) {
-    ev.preventDefault();
-    ensureTodayFresh();
-    var res = addTask(inputEl.value, timeEl ? timeEl.value : null);
-    if (!res.ok) {
-      showError(res.error);
-      inputEl.focus();
-      return;
-    }
-    hideError();
-    inputEl.value = "";
-    if (timeEl) timeEl.value = "";
-    inputEl.focus();
-  });
-
-  inputEl.addEventListener("input", function () {
-    if (!errorEl.hidden && inputEl.value.trim()) hideError();
-  });
-
-  listEl.addEventListener("click", function (ev) {
-    var btn = ev.target.closest("button");
-    if (!btn || !listEl.contains(btn)) return;
-    var li = btn.closest("li[data-id]");
-    if (!li) return;
-    var id = li.dataset.id;
-    var action = btn.dataset.action;
-
-    ensureTodayFresh();
-
-    if (action === "toggle") {
-      toggleTask(id);
-    } else if (action === "delete") {
-      deleteTask(id);
-    } else if (action === "edit") {
-      var task = findTask(id);
-      if (task) renderEditMode(li, task);
-    } else if (action === "save") {
-      var field = li.querySelector(".edit-input");
-      var res = commitEdit(id, field ? field.value : "");
-      if (!res.ok && res.error) {
+  // ---------- Events & Keybindings ----------
+  if (formEl) {
+    formEl.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      ensureTodayFresh();
+      var res = addTask(inputEl ? inputEl.value : "", timeEl ? timeEl.value : null, selectedCategory);
+      if (!res.ok) {
         showError(res.error);
-        if (field) field.focus();
-      } else {
-        hideError();
+        if (inputEl) inputEl.focus();
+        return;
       }
-    } else if (action === "cancel") {
-      renderTasks();
-    }
-  });
+      hideError();
+      if (inputEl) inputEl.value = "";
+      if (timeEl) timeEl.value = "";
+      if (composerCharCountEl) composerCharCountEl.textContent = "";
+      if (inputEl) inputEl.focus();
+    });
+  }
 
-  // ---------- Qur'an events ----------
+  if (inputEl) {
+    inputEl.addEventListener("input", function () {
+      var len = inputEl.value.length;
+      if (composerCharCountEl) {
+        composerCharCountEl.textContent = len > 350 ? len + " / " + MAX_TEXT_LENGTH : "";
+      }
+      if (!errorEl.hidden && inputEl.value.trim()) hideError();
+    });
+  }
+
+  if (categoryPillsContainer) {
+    categoryPillsContainer.addEventListener("click", function (ev) {
+      var btn = ev.target.closest(".cat-pill");
+      if (!btn) return;
+      var pills = categoryPillsContainer.querySelectorAll(".cat-pill");
+      pills.forEach(function (p) { p.classList.remove("active"); });
+      btn.classList.add("active");
+      selectedCategory = btn.dataset.cat || "";
+      if (inputEl) inputEl.focus();
+    });
+  }
+
+  if (filterTabsEl) {
+    filterTabsEl.addEventListener("click", function (ev) {
+      var btn = ev.target.closest(".filter-tab");
+      if (!btn) return;
+      var tabs = filterTabsEl.querySelectorAll(".filter-tab");
+      tabs.forEach(function (t) {
+        t.classList.remove("active");
+        t.setAttribute("aria-selected", "false");
+      });
+      btn.classList.add("active");
+      btn.setAttribute("aria-selected", "true");
+      currentFilter = btn.dataset.filter || "all";
+      renderTasks();
+    });
+  }
+
+  if (searchInputEl) {
+    searchInputEl.addEventListener("input", function () {
+      searchQuery = (searchInputEl.value || "").trim();
+      if (searchClearBtn) searchClearBtn.hidden = !searchQuery;
+      renderTasks();
+    });
+  }
+  if (searchClearBtn) {
+    searchClearBtn.addEventListener("click", function () {
+      if (searchInputEl) {
+        searchInputEl.value = "";
+        searchQuery = "";
+        searchClearBtn.hidden = true;
+        renderTasks();
+        searchInputEl.focus();
+      }
+    });
+  }
+
+  if (clearCompletedBtn) {
+    clearCompletedBtn.addEventListener("click", function () {
+      clearCompletedTasks();
+    });
+  }
+
+  if (listEl) {
+    listEl.addEventListener("click", function (ev) {
+      var btn = ev.target.closest("button");
+      if (!btn || !listEl.contains(btn)) return;
+      var li = btn.closest("li[data-id]");
+      if (!li) return;
+      var id = li.dataset.id;
+      var action = btn.dataset.action;
+
+      ensureTodayFresh();
+
+      if (action === "toggle") {
+        toggleTask(id);
+      } else if (action === "delete") {
+        deleteTask(id);
+      } else if (action === "edit") {
+        var task = findTask(id);
+        if (task) renderEditMode(li, task);
+      } else if (action === "save") {
+        var field = li.querySelector(".edit-input");
+        var res = commitEdit(id, field ? field.value : "");
+        if (!res.ok && res.error) {
+          showError(res.error);
+          if (field) field.focus();
+        } else {
+          hideError();
+        }
+      } else if (action === "cancel") {
+        renderTasks();
+      }
+    });
+  }
+
+  // Qur'an Events
   if (quranFormEl) {
     quranFormEl.addEventListener("submit", function (ev) {
       ev.preventDefault();
@@ -1031,6 +1474,21 @@
     if (quranStartEl) quranStartEl.addEventListener("input", hideQuranError);
     if (quranEndEl) quranEndEl.addEventListener("input", hideQuranError);
   }
+
+  // Quran Preset Buttons
+  document.addEventListener("click", function (ev) {
+    var presetBtn = ev.target.closest(".quran-preset-btn");
+    if (!presetBtn) return;
+    var start = presetBtn.dataset.start;
+    var end = presetBtn.dataset.end;
+    if (start && end && quranStartEl && quranEndEl) {
+      quranStartEl.value = start;
+      quranEndEl.value = end;
+      hideQuranError();
+      quranStartEl.focus();
+    }
+  });
+
   if (quranGridEl) {
     quranGridEl.addEventListener("click", function (ev) {
       var btn = ev.target.closest("button[data-page]");
@@ -1042,6 +1500,7 @@
       toggleQuranPage(page);
     });
   }
+
   if (quranClearBtn) {
     quranClearBtn.addEventListener("click", function () {
       ensureTodayFresh();
@@ -1053,6 +1512,7 @@
       if (quranStartEl) quranStartEl.focus();
     });
   }
+
   function handleQuranJump() {
     ensureTodayFresh();
     if (!state.quran || !quranJumpEl) return;
@@ -1078,7 +1538,54 @@
     });
   }
 
-  // ---------- Midnight rollover (no refresh required) ----------
+  if (quranMarkAllBtn) quranMarkAllBtn.addEventListener("click", markAllQuranPages);
+  if (quranResetAllBtn) quranResetAllBtn.addEventListener("click", resetAllQuranPages);
+
+  // Quran Section Collapse / Toggle
+  function toggleQuranCollapse() {
+    if (!quranSectionEl) return;
+    var isCollapsed = quranSectionEl.classList.toggle("quran-collapsed");
+    try { window.localStorage.setItem(QURAN_COLLAPSED_KEY, isCollapsed ? "1" : "0"); } catch (e) {}
+    if (quranToggleHeaderBtn) {
+      quranToggleHeaderBtn.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+    }
+  }
+  if (quranCollapseBtn) quranCollapseBtn.addEventListener("click", toggleQuranCollapse);
+  if (quranToggleHeaderBtn) {
+    quranToggleHeaderBtn.addEventListener("click", function () {
+      if (quranSectionEl) {
+        if (quranSectionEl.classList.contains("quran-collapsed")) {
+          toggleQuranCollapse();
+        }
+        quranSectionEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  }
+
+  // Restore Quran collapsed state
+  try {
+    if (window.localStorage.getItem(QURAN_COLLAPSED_KEY) === "1" && quranSectionEl) {
+      quranSectionEl.classList.add("quran-collapsed");
+      if (quranToggleHeaderBtn) quranToggleHeaderBtn.setAttribute("aria-expanded", "false");
+    }
+  } catch (e) {}
+
+  // Global Keyboard Shortcuts
+  window.addEventListener("keydown", function (ev) {
+    // Focus task input with '/' when not already typing
+    if (ev.key === "/" && document.activeElement !== inputEl &&
+        document.activeElement.tagName !== "INPUT" &&
+        document.activeElement.tagName !== "TEXTAREA") {
+      ev.preventDefault();
+      if (inputEl) inputEl.focus();
+    }
+  });
+
+  // Theme & Sound Buttons
+  if (themeToggleBtn) themeToggleBtn.addEventListener("click", cycleTheme);
+  if (soundToggleBtn) soundToggleBtn.addEventListener("click", toggleSound);
+
+  // Rollover Watcher
   function startRolloverWatch() {
     window.setInterval(function () {
       if (ensureTodayFresh()) {
@@ -1104,6 +1611,8 @@
   }
 
   // ---------- Init ----------
+  applyTheme(currentTheme);
+  updateSoundIcon();
   ensureTodayFresh();
   if (!storageOK) showStorageWarning();
   renderAll();
@@ -1130,6 +1639,7 @@
       try { window.localStorage.setItem(INSTALL_SEEN_KEY, "1"); } catch (e) {}
     });
   }
+
   if (reminderBtn) {
     reminderBtn.addEventListener("click", function () {
       if (permissionState() === "unsupported") {
@@ -1144,7 +1654,6 @@
             checkDueReminders(new Date());
           }).catch(function () { renderReminderBar(); });
         } else {
-          // Legacy callback form (older Samsung Internet).
           Notification.requestPermission(function () {
             renderReminderBar();
             checkDueReminders(new Date());
@@ -1155,21 +1664,23 @@
       }
     });
   }
-  // Deep-link from notification tap: ?task=<id> or SW postMessage.
+
+  // Deep-link from notification tap: ?task=<id>
   try {
     var q = new URLSearchParams(window.location.search || "");
     var deep = q.get("task");
     if (deep) {
       window.setTimeout(function () { focusTask(deep); }, 300);
     }
-  } catch (e) { /* ignore */ }
+  } catch (e) {}
+
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("message", function (ev) {
       if (ev.data && ev.data.type === "FOCUS_TASK") focusTask(ev.data.taskId);
     });
   }
 
-  // Safe test seam (does not alter prod behavior unless override is set externally).
+  // Test Seam (Exact backward compatibility preserved)
   if (typeof window !== "undefined") {
     window.__fikraTest = {
       getLocalDateKey: getLocalDateKey,

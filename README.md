@@ -6,22 +6,27 @@ Private by design — no account, no backend, no tracking. Tasks stay in your br
 
 ## Features
 
-- Add tasks (button or `Enter`), edit inline, mark complete / unmark, delete
-- Empty-input guard, 500-char limit, order preserved
-- Optional per-task reminder time (native time picker, mobile-friendly)
-- Reminder notifications via Notification API + persistent Service Worker notifications (EN/AR body)
-- Friendly permission flow: reminders enabled only via "Enable Reminders 🔔", never on load; denied/unsupported states degrade gracefully
-- Reminder states: upcoming / due / completed / overdue (overdue highlighted, completed never notifies)
-- Notification tap opens/focuses the app at the relevant task (`?task=<id>` deep-link + highlight)
-- App icon badge count where supported (Badging API, progressive enhancement)
-- Installable PWA: `manifest.json`, `display: standalone`, icons 192/512 + maskable, offline-cached core files
-- Install UI: one-tap Install when `beforeinstallprompt` fires, hidden when already installed/standalone, manual fallback instructions otherwise
-- Completion persists across refresh / close / reopen
-- Daily summary: `X of Y tasks completed` + progress bar + subtle all-done state
-- Empty-state message when no tasks
-- Accessible: semantic HTML, labels, keyboard (Enter to save, Esc to cancel edit), visible focus, 44px touch targets, completion not color-only (✓ + strikethrough)
-- Mobile-first responsive: phones → tablets → desktop, no horizontal scroll, Arabic wraps safely
-- Secure rendering: user text inserted via `textContent` only, never `innerHTML`
+- **Modern Glassmorphic UI/UX**: Soft radiant ambient lighting, clean card elevation, crisp typography (`Plus Jakarta Sans` & `Amiri`).
+- **Dark & Light Mode**: Instant theme switching (Light / Dark / System auto) with persistence and smooth transitions.
+- **Audio & Haptic Feedback**: Synthesized Web Audio cues on completion, unchecking, and celebration fanfare (100% offline, zero audio files).
+- **Confetti Celebration**: Canvas particle fireworks upon completing all daily tasks.
+- **Dynamic Productivity Stats**: Real-time progress bar, percentage, greeting messages, and breakdown pills (Total, Active, Done).
+- **Task Filters & Real-time Search**: Quick filter tabs (`All`, `Active`, `Completed`) and instant search input for today's tasks.
+- **Category Tags**: Tag tasks with optional categories (`📖 Deen`, `💼 Work`, `📚 Study`, `🌱 Personal`, `General`).
+- **Qur'an Revision Planner (604 Pages)**: Daily Mushaf revision tracker with quick presets (Juz 30, Juz 1, Al-Kahf, +10 pages), jump-to-page, mark all, and collapsible view.
+- **Add tasks (button or `Enter`)**, edit inline, mark complete / unmark, delete
+- **Empty-input guard, 500-char limit**, order preserved
+- **Optional per-task reminder time** (native time picker, mobile-friendly)
+- **Reminder notifications** via Notification API + persistent Service Worker notifications (EN/AR body)
+- **Friendly permission flow**: reminders enabled only via "Enable Reminders", never on load; denied/unsupported states degrade gracefully
+- **Reminder states**: upcoming / due / completed / overdue (overdue highlighted, completed never notifies)
+- **Notification tap** opens/focuses the app at the relevant task (`?task=<id>` deep-link + highlight)
+- **App icon badge count** where supported (Badging API, progressive enhancement)
+- **Installable PWA**: `manifest.json`, `display: standalone`, icons 192/512 + maskable, offline-cached core files (`sw.js` cache v3)
+- **Completion persists** across refresh / close / reopen
+- **Daily reset at midnight**: calendar-bound, resets automatically past midnight without needing manual reload
+- **Accessible & Mobile-First**: Semantic HTML, visible focus rings, keyboard shortcuts (`/` to focus task input, `Esc` to cancel), 44px+ touch targets
+- **Secure rendering**: User text inserted safely via `textContent` only, never `innerHTML`
 
 ## Technologies
 

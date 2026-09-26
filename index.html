@@ -1,190 +1,469 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="en" dir="ltr" data-theme="system">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="description" content="Fikra To-Do — a minimal daily to-do list with Arabic & English support and automatic midnight reset. Private, fast, local-only." />
-  <meta name="theme-color" content="#0f766e" />
+  <meta name="description" content="Fikra To-Do — a modern, elegant daily to-do list with Arabic & English support, Quran revision planner, reminders, and automatic midnight reset. Private, fast, offline-first." />
+  <meta name="theme-color" content="#0f766e" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#090d12" media="(prefers-color-scheme: dark)" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Fikra" />
   <title>Fikra To-Do — Today's Tasks</title>
+  
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
+  
+  <!-- Premium Google Fonts: Plus Jakarta Sans for UI + Amiri for Arabic Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <a class="skip-link" href="#task-list-heading">Skip to tasks</a>
 
+  <!-- Ambient background glow elements -->
+  <div class="ambient-glow glow-1" aria-hidden="true"></div>
+  <div class="ambient-glow glow-2" aria-hidden="true"></div>
+
+  <!-- Confetti canvas for 100% completion celebration -->
+  <canvas id="confetti-canvas" aria-hidden="true"></canvas>
+
   <div class="app">
+    <!-- Modern Header -->
     <header class="app-header">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M4 12.5l5 5L20 6.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </span>
-        <span class="brand-name">Fikra To-Do</span>
+      <div class="header-top">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+            <span class="brand-sparkle"></span>
+          </div>
+          <div class="brand-text">
+            <span class="brand-name">Fikra<span class="brand-accent">.</span></span>
+            <span class="brand-tagline">Daily Clarity</span>
+          </div>
+        </div>
+
+        <!-- Quick actions: Theme Toggle, Sound Toggle, Quran Drawer Toggle -->
+        <div class="header-actions">
+          <button id="sound-toggle" type="button" class="header-action-btn" title="Toggle audio feedback" aria-label="Toggle completion sound">
+            <svg class="icon-sound-on" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+            </svg>
+            <svg class="icon-sound-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <line x1="23" y1="9" x2="17" y2="15"></line>
+              <line x1="17" y1="9" x2="23" y2="15"></line>
+            </svg>
+          </button>
+
+          <button id="theme-toggle" type="button" class="header-action-btn" title="Toggle theme (System / Light / Dark)" aria-label="Toggle theme">
+            <!-- Sun icon -->
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+            <!-- Moon icon -->
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          </button>
+
+          <button id="quran-toggle-btn" type="button" class="header-action-btn quran-badge-btn" title="Toggle Qur'an Revision section" aria-label="Toggle Qur'an Revision" aria-expanded="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+            </svg>
+            <span class="quran-pill-text" lang="ar">مراجعة</span>
+          </button>
+        </div>
       </div>
-      <p class="date-line">
-        <time id="current-date" datetime="">Loading date…</time>
-      </p>
-      <p class="today-badge">
-        <span class="dot" aria-hidden="true"></span>
-        Today's tasks
-      </p>
+
+      <!-- Live Date & Status Pill -->
+      <div class="header-meta">
+        <div class="date-badge">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          <time id="current-date" datetime="">Loading date…</time>
+        </div>
+        <div class="today-badge">
+          <span class="dot-pulse" aria-hidden="true"></span>
+          <span>Today's Focus</span>
+        </div>
+      </div>
     </header>
 
     <main class="app-main">
-      <section id="pwa-install" class="install-card" hidden aria-labelledby="install-heading">
-        <div class="install-row">
+      <!-- PWA Install Banner (Modern Glass Card) -->
+      <section id="pwa-install" class="install-card glass-surface" hidden aria-labelledby="install-heading">
+        <div class="card-icon-bubble" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </div>
+        <div class="install-content">
           <div class="install-text">
             <h2 id="install-heading">Install Fikra To-Do</h2>
-            <p id="install-desc">Get the app icon on your home screen and open it standalone, with offline access.</p>
-            <p id="install-fallback" class="install-fallback" hidden>Your browser doesn't support one-tap install — open the browser menu ⋮ and choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.</p>
+            <p id="install-desc">Add Fikra to your home screen for instant offline access and standalone distraction-free focus.</p>
+            <p id="install-fallback" class="install-fallback" hidden>Your browser doesn't support one-tap install — open the browser menu ⋮ and tap <strong>Install app</strong> or <strong>Add to Home screen</strong>.</p>
           </div>
           <div class="install-actions">
-            <button id="install-btn" type="button" class="btn-primary">Install</button>
-            <button id="install-dismiss" type="button" class="btn-ghost">Not now</button>
+            <button id="install-btn" type="button" class="btn-primary btn-sm">Install App</button>
+            <button id="install-dismiss" type="button" class="btn-ghost btn-sm">Not now</button>
           </div>
         </div>
       </section>
 
-      <section class="reminder-card" aria-labelledby="reminder-heading">
-        <div class="reminder-row">
+      <!-- Reminders Banner (Modern Glass Card) -->
+      <section class="reminder-card glass-surface" aria-labelledby="reminder-heading">
+        <div class="card-icon-bubble bell-bubble" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+        </div>
+        <div class="reminder-content">
           <div class="reminder-text">
-            <h2 id="reminder-heading">Reminders</h2>
-            <p id="reminder-status" role="status">Enable notifications to get reminded at each task's time.</p>
-            <p class="reliability-note">Note: exact background timing depends on your browser/OS — reminders are most reliable while the app or PWA is open or recently used.</p>
+            <h2 id="reminder-heading">Smart Reminders</h2>
+            <p id="reminder-status" role="status">Enable notifications to receive gentle prompts at each task's scheduled time.</p>
+            <p class="reliability-note">Background timing is most reliable while the app or installed PWA is open or recently used.</p>
           </div>
-          <button id="reminder-btn" type="button" class="btn-secondary">Enable Reminders 🔔</button>
-        </div>
-      </section>
-
-      <section class="composer-card" aria-labelledby="composer-heading">
-        <h2 id="composer-heading" class="visually-hidden">Add a new task</h2>
-        <form id="task-form" autocomplete="off" novalidate>
-          <label class="visually-hidden" for="task-input">New task</label>
-          <input
-            id="task-input"
-            name="task"
-            type="text"
-            dir="auto"
-            maxlength="500"
-            placeholder="What do you want to accomplish today?"
-            aria-describedby="form-error"
-            enterkeyhint="done"
-          />
-          <label class="visually-hidden" for="task-time">Reminder time (optional)</label>
-          <input
-            id="task-time"
-            name="time"
-            type="time"
-            aria-label="Reminder time (optional)"
-            title="Optional reminder time"
-          />
-          <button id="add-btn" type="submit" class="btn-primary">
-            <span aria-hidden="true">+</span> Add
+          <button id="reminder-btn" type="button" class="btn-secondary btn-sm">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+            <span>Enable Reminders</span>
           </button>
-        </form>
-        <p id="form-error" class="form-error" role="alert" hidden></p>
-        <p class="hint">Press <kbd>Enter</kbd> to add quickly · Tasks reset at midnight</p>
+        </div>
       </section>
 
-      <section class="summary-card" aria-labelledby="summary-heading">
+      <!-- Modern Summary & Progress Dashboard Card -->
+      <section class="summary-card glass-surface" aria-labelledby="summary-heading">
         <h2 id="summary-heading" class="visually-hidden">Daily progress</h2>
-        <div class="summary-row">
-          <p id="summary-text" aria-live="polite">0 of 0 tasks completed</p>
-          <p id="summary-pct" class="summary-pct" aria-hidden="true">0%</p>
+        
+        <div class="summary-header">
+          <div class="greeting-wrap">
+            <p id="greeting-text" class="greeting-text">Today's Progress</p>
+            <p id="summary-text" class="summary-sub" aria-live="polite">0 of 0 tasks completed</p>
+          </div>
+          <div class="summary-score-badge">
+            <span id="summary-pct" class="summary-pct" aria-hidden="true">0%</span>
+          </div>
         </div>
+
+        <!-- Sleek Progress Bar -->
         <div class="progress-track" role="progressbar" aria-label="Daily progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar">
-          <div class="progress-fill" id="progress-fill"></div>
+          <div class="progress-fill" id="progress-fill">
+            <div class="progress-shimmer"></div>
+          </div>
         </div>
-        <p id="celebration" class="celebration" hidden>✓ All done. Well deserved.</p>
+
+        <!-- Stats Chips Row -->
+        <div class="stats-pills-row">
+          <div class="stat-pill">
+            <span class="stat-label">Total</span>
+            <span id="stat-total-count" class="stat-value">0</span>
+          </div>
+          <div class="stat-pill active-stat">
+            <span class="stat-label">Active</span>
+            <span id="stat-active-count" class="stat-value">0</span>
+          </div>
+          <div class="stat-pill done-stat">
+            <span class="stat-label">Done</span>
+            <span id="stat-done-count" class="stat-value">0</span>
+          </div>
+        </div>
+
+        <div id="celebration" class="celebration" hidden>
+          <div class="celebration-icon" aria-hidden="true">🌿</div>
+          <div class="celebration-text">
+            <strong>All done for today!</strong>
+            <span>Take a well-deserved rest or reflect.</span>
+          </div>
+        </div>
       </section>
 
-      <section class="quran-card" aria-labelledby="quran-heading">
-        <div class="quran-head">
-          <div class="quran-head-text">
-            <h2 id="quran-heading">Qur'an Revision <span class="quran-ar" lang="ar">مراجعة القرآن</span></h2>
-            <p id="quran-sub" class="quran-sub">Plan today's pages from the 604-page Mushaf. Resets at midnight.</p>
-          </div>
-          <button id="quran-clear" type="button" class="btn-ghost quran-clear" hidden>New plan</button>
-        </div>
+      <!-- Modern Task Composer Card -->
+      <section class="composer-card glass-surface" aria-labelledby="composer-heading">
+        <h2 id="composer-heading" class="visually-hidden">Add a new task</h2>
+        
+        <form id="task-form" autocomplete="off" novalidate>
+          <div class="composer-main-row">
+            <div class="input-glow-wrapper">
+              <span class="input-icon-left" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="16"></line>
+                  <line x1="8" y1="12" x2="16" y2="12"></line>
+                </svg>
+              </span>
+              <label class="visually-hidden" for="task-input">New task</label>
+              <input
+                id="task-input"
+                name="task"
+                type="text"
+                dir="auto"
+                maxlength="500"
+                placeholder="What do you want to achieve today? (e.g. حفظ ورد القرآن)"
+                aria-describedby="form-error"
+                enterkeyhint="done"
+              />
+            </div>
+            
+            <div class="composer-controls">
+              <div class="time-picker-wrapper" title="Optional scheduled time">
+                <span class="time-icon" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                  </svg>
+                </span>
+                <label class="visually-hidden" for="task-time">Reminder time (optional)</label>
+                <input
+                  id="task-time"
+                  name="time"
+                  type="time"
+                  aria-label="Reminder time (optional)"
+                  title="Optional reminder time"
+                />
+              </div>
 
-        <form id="quran-form" autocomplete="off" novalidate>
-          <div class="quran-form-row">
-            <div class="quran-field">
-              <label for="quran-start"><span dir="auto">Start page · <span lang="ar">صفحة البداية</span></span></label>
-              <input
-                id="quran-start"
-                name="quran-start"
-                type="number"
-                inputmode="numeric"
-                min="1"
-                max="604"
-                step="1"
-                placeholder="120"
-                aria-describedby="quran-error"
-              />
+              <button id="add-btn" type="submit" class="btn-primary add-submit-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>Add Task</span>
+              </button>
             </div>
-            <div class="quran-field">
-              <label for="quran-end"><span dir="auto">End page · <span lang="ar">صفحة النهاية</span></span></label>
-              <input
-                id="quran-end"
-                name="quran-end"
-                type="number"
-                inputmode="numeric"
-                min="1"
-                max="604"
-                step="1"
-                placeholder="145"
-                aria-describedby="quran-error"
-              />
-            </div>
-            <button id="quran-start-btn" type="submit" class="btn-primary">Start Revision</button>
           </div>
-          <p id="quran-error" class="form-error" role="alert" hidden></p>
+
+          <!-- Quick category selector pills -->
+          <div class="category-pills-row" role="radiogroup" aria-label="Task category (optional)">
+            <button type="button" class="cat-pill active" data-cat="">General</button>
+            <button type="button" class="cat-pill" data-cat="deen">📖 Deen</button>
+            <button type="button" class="cat-pill" data-cat="work">💼 Work</button>
+            <button type="button" class="cat-pill" data-cat="study">📚 Study</button>
+            <button type="button" class="cat-pill" data-cat="personal">🌱 Personal</button>
+          </div>
         </form>
 
-        <div id="quran-active" hidden>
-          <div class="quran-meta-row">
-            <p id="quran-range-label" class="quran-range" dir="auto"></p>
-            <p id="quran-progress-label" class="quran-progress-text" aria-live="polite"></p>
-          </div>
-          <div class="progress-track" role="progressbar" aria-label="Qur'an revision progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="quran-progress-bar">
-            <div class="progress-fill" id="quran-progress-fill"></div>
-          </div>
-          <div class="quran-jump-row">
-            <label for="quran-jump">Jump to page</label>
-            <input id="quran-jump" type="number" inputmode="numeric" min="1" max="604" step="1" placeholder="e.g. 250" aria-label="Jump to page number" />
-            <button id="quran-jump-btn" type="button" class="btn-secondary quran-jump-btn">Go</button>
-          </div>
-          <div id="quran-grid" class="quran-grid" role="list" aria-label="Revision pages"></div>
-          <p id="quran-complete" class="celebration quran-complete" hidden></p>
+        <p id="form-error" class="form-error" role="alert" hidden></p>
+        <div class="composer-footer-hints">
+          <p class="hint">Press <kbd>Enter</kbd> to add quickly · Tasks reset automatically at midnight</p>
+          <span class="char-count" id="composer-char-count"></span>
         </div>
       </section>
 
-      <section class="list-card" aria-labelledby="task-list-heading">
-        <h2 id="task-list-heading" class="list-heading">Today's list</h2>
+      <!-- Qur'an Revision Planner (Elevated Islamic Spiritual Design) -->
+      <section id="quran-section" class="quran-card glass-surface" aria-labelledby="quran-heading">
+        <div class="quran-header-bar">
+          <div class="quran-brand">
+            <div class="quran-icon-bubble" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+              </svg>
+            </div>
+            <div>
+              <h2 id="quran-heading">Qur'an Revision <span class="quran-ar" lang="ar">مراجعة القرآن الكريم</span></h2>
+              <p id="quran-sub" class="quran-sub">Track today's pages from the 604-page Mushaf. Resets at midnight.</p>
+            </div>
+          </div>
+          <div class="quran-head-actions">
+            <button id="quran-clear" type="button" class="btn-ghost btn-sm quran-clear" hidden>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+                <path d="M21 3v5h-5"></path>
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+                <path d="M8 16H3v5"></path>
+              </svg>
+              <span>New Plan</span>
+            </button>
+            <button id="quran-collapse-btn" type="button" class="icon-btn-minimal" aria-label="Toggle Quran section collapse">
+              <svg class="chevron-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+          </div>
+        </div>
 
+        <!-- Collapsible Content Wrapper -->
+        <div id="quran-body-content" class="quran-body-content">
+          <!-- Setup Form -->
+          <form id="quran-form" autocomplete="off" novalidate>
+            <!-- Quick preset chips -->
+            <div class="quran-presets-row" aria-label="Quick page ranges">
+              <span class="preset-label">Quick Presets:</span>
+              <button type="button" class="quran-preset-btn" data-start="582" data-end="604">Juz 30 (582–604)</button>
+              <button type="button" class="quran-preset-btn" data-start="1" data-end="21">Juz 1 (1–21)</button>
+              <button type="button" class="quran-preset-btn" data-start="293" data-end="304">Al-Kahf (293–304)</button>
+              <button type="button" class="quran-preset-btn" data-start="1" data-end="10">10 Pages</button>
+            </div>
+
+            <div class="quran-form-row">
+              <div class="quran-field">
+                <label for="quran-start"><span dir="auto">Start page · <span lang="ar">صفحة البداية</span></span></label>
+                <input
+                  id="quran-start"
+                  name="quran-start"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  max="604"
+                  step="1"
+                  placeholder="e.g. 1"
+                  aria-describedby="quran-error"
+                />
+              </div>
+              <div class="quran-field">
+                <label for="quran-end"><span dir="auto">End page · <span lang="ar">صفحة النهاية</span></span></label>
+                <input
+                  id="quran-end"
+                  name="quran-end"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  max="604"
+                  step="1"
+                  placeholder="e.g. 20"
+                  aria-describedby="quran-error"
+                />
+              </div>
+              <button id="quran-start-btn" type="submit" class="btn-primary quran-start-btn">
+                <span>Start Revision</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </button>
+            </div>
+            <p id="quran-error" class="form-error" role="alert" hidden></p>
+          </form>
+
+          <!-- Active Plan Display -->
+          <div id="quran-active" hidden>
+            <div class="quran-meta-card">
+              <div class="quran-meta-row">
+                <p id="quran-range-label" class="quran-range" dir="auto"></p>
+                <p id="quran-progress-label" class="quran-progress-text" aria-live="polite"></p>
+              </div>
+              <div class="progress-track quran-track" role="progressbar" aria-label="Qur'an revision progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="quran-progress-bar">
+                <div class="progress-fill quran-fill" id="quran-progress-fill"></div>
+              </div>
+            </div>
+
+            <!-- Toolbar: Jump to Page & Batch Action -->
+            <div class="quran-tools-row">
+              <div class="quran-jump-row">
+                <label for="quran-jump">Jump to</label>
+                <input id="quran-jump" type="number" inputmode="numeric" min="1" max="604" step="1" placeholder="Page #" aria-label="Jump to page number" />
+                <button id="quran-jump-btn" type="button" class="btn-secondary btn-sm quran-jump-btn">Go</button>
+              </div>
+
+              <div class="quran-batch-actions">
+                <button id="quran-mark-all-btn" type="button" class="btn-ghost btn-sm" title="Mark all pages complete">Mark all</button>
+                <button id="quran-reset-all-btn" type="button" class="btn-ghost btn-sm" title="Unmark all pages">Reset</button>
+              </div>
+            </div>
+
+            <!-- Interactive Mushaf Pages Grid -->
+            <div id="quran-grid" class="quran-grid" role="list" aria-label="Revision pages"></div>
+            
+            <p id="quran-complete" class="celebration quran-complete" hidden></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Task List Card -->
+      <section class="list-card glass-surface" aria-labelledby="task-list-heading">
+        <div class="list-header-bar">
+          <div class="list-title-wrap">
+            <h2 id="task-list-heading" class="list-heading">Today's Tasks</h2>
+            <span id="task-count-badge" class="task-count-badge">0</span>
+          </div>
+
+          <!-- Filter Tabs: All / Active / Completed -->
+          <div class="filter-tabs" role="tablist" aria-label="Filter tasks">
+            <button id="filter-all" type="button" class="filter-tab active" role="tab" aria-selected="true" data-filter="all">All</button>
+            <button id="filter-active" type="button" class="filter-tab" role="tab" aria-selected="false" data-filter="active">Active</button>
+            <button id="filter-completed" type="button" class="filter-tab" role="tab" aria-selected="false" data-filter="completed">Completed</button>
+          </div>
+        </div>
+
+        <!-- Quick Search Bar (visible when multiple tasks exist) -->
+        <div id="search-bar-wrap" class="search-bar-wrap" hidden>
+          <span class="search-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </span>
+          <input id="task-search-input" type="search" placeholder="Search today's tasks..." aria-label="Search tasks" autocomplete="off" />
+          <button id="task-search-clear" type="button" class="search-clear-btn" aria-label="Clear search" hidden>✕</button>
+        </div>
+
+        <!-- Empty State -->
         <div id="empty-state" class="empty-state">
-          <div class="empty-icon" aria-hidden="true">○</div>
-          <p class="empty-title">No tasks yet</p>
-          <p class="empty-sub">Add your first task for today above to get started.</p>
+          <div class="empty-illustration" aria-hidden="true">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <path d="M9 15l2 2 4-4"></path>
+            </svg>
+          </div>
+          <p class="empty-title">All clear for today</p>
+          <p class="empty-sub">What's on your mind? Add your primary tasks above to build momentum.</p>
         </div>
 
+        <!-- Task List Element -->
         <ul id="task-list" aria-label="Today's tasks"></ul>
+
+        <!-- Bottom Action Bar (Clear Completed) -->
+        <div id="list-footer-actions" class="list-footer-actions" hidden>
+          <button id="clear-completed-btn" type="button" class="btn-ghost btn-sm danger-ghost">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            <span>Clear Completed</span>
+          </button>
+        </div>
       </section>
 
+      <!-- Offline / Storage Warning -->
       <p id="storage-warning" class="storage-warning" hidden role="status"></p>
     </main>
 
+    <!-- Modern Footer -->
     <footer class="app-footer">
-      <p>Private by design — tasks stay in this browser only.</p>
+      <div class="footer-privacy">
+        <span class="privacy-dot" aria-hidden="true"></span>
+        <span>100% Private & Local — No tracker, no cloud storage, no account required.</span>
+      </div>
+      <p class="footer-copy">Fikra To-Do · Designed for mindful productivity</p>
     </footer>
   </div>
 
