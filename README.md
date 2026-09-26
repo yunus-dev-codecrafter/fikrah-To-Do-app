@@ -7,8 +7,11 @@ Private by design — no account, no backend, no tracking. Tasks stay in your br
 ## Features
 
 - **Modern Glassmorphic UI/UX**: Soft radiant ambient lighting, clean card elevation, crisp typography (`Plus Jakarta Sans` & `Amiri`).
-- **Dark & Light Mode**: Instant theme switching (Light / Dark / System auto) with persistence and smooth transitions.
-- **Audio & Haptic Feedback**: Synthesized Web Audio cues on completion, unchecking, and celebration fanfare (100% offline, zero audio files).
+- **Dark & Light Mode**: Instant theme switching with radiant warm sun (`☀️`) in dark mode and moon (`🌙`) in light mode, with single-active display.
+- **Audio & Haptic Feedback**: Synthesized Web Audio cues on completion, unchecking, and celebration fanfare, with dedicated mute toggle (`🔊` / `🔇`).
+- **Screen Stay-Awake (Wake Lock API)**: Keeps mobile and desktop screens awake while using the app or revising Qur'an (`🖥️`).
+- **Collapsible Smart Reminders Card**: Minimalistic collapsible card with live permission status pill (`Turn on 🔔`, `Active ✓`, `Blocked ⚠`) and smooth accordion expansion.
+- **Auto-Dismissing PWA Install Banner**: Disappears completely when the app is already installed or standalone, with no forced popups.
 - **Confetti Celebration**: Canvas particle fireworks upon completing all daily tasks.
 - **Dynamic Productivity Stats**: Real-time progress bar, percentage, greeting messages, and breakdown pills (Total, Active, Done).
 - **Task Filters & Real-time Search**: Quick filter tabs (`All`, `Active`, `Completed`) and instant search input for today's tasks.
@@ -22,7 +25,7 @@ Private by design — no account, no backend, no tracking. Tasks stay in your br
 - **Reminder states**: upcoming / due / completed / overdue (overdue highlighted, completed never notifies)
 - **Notification tap** opens/focuses the app at the relevant task (`?task=<id>` deep-link + highlight)
 - **App icon badge count** where supported (Badging API, progressive enhancement)
-- **Installable PWA**: `manifest.json`, `display: standalone`, icons 192/512 + maskable, offline-cached core files (`sw.js` cache v3)
+- **Installable PWA**: `manifest.json`, `display: standalone`, icons 192/512 + maskable, offline-cached core files (`sw.js` cache v4)
 - **Completion persists** across refresh / close / reopen
 - **Daily reset at midnight**: calendar-bound, resets automatically past midnight without needing manual reload
 - **Accessible & Mobile-First**: Semantic HTML, visible focus rings, keyboard shortcuts (`/` to focus task input, `Esc` to cancel), 44px+ touch targets

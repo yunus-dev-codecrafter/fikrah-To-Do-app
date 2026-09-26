@@ -51,25 +51,44 @@
           </div>
         </div>
 
-        <!-- Quick actions: Theme Toggle, Sound Toggle, Quran Drawer Toggle -->
+        <!-- Quick actions: Wake Lock, Sound Toggle, Theme Toggle, Quran Drawer Toggle -->
         <div class="header-actions">
-          <button id="sound-toggle" type="button" class="header-action-btn" title="Toggle audio feedback" aria-label="Toggle completion sound">
+          <button id="wakelock-toggle" type="button" class="header-action-btn" data-wakelock="on" title="Screen Stay-Awake: Active (Screen won't turn off while app is open)" aria-label="Toggle keep screen awake">
+            <!-- Awake On (Screen with glowing dot) -->
+            <svg class="icon-wakelock-on" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+              <circle cx="12" cy="10" r="2.5" fill="currentColor"></circle>
+            </svg>
+            <!-- Awake Off (Screen with slash) -->
+            <svg class="icon-wakelock-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+              <line x1="2" y1="2" x2="22" y2="22" stroke-width="2.2"></line>
+            </svg>
+          </button>
+
+          <button id="sound-toggle" type="button" class="header-action-btn" data-sound="on" title="Toggle audio feedback" aria-label="Toggle completion sound">
+            <!-- Sound On -->
             <svg class="icon-sound-on" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
               <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
               <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
             </svg>
-            <svg class="icon-sound-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden style="display: none;">
+            <!-- Sound Off / Mute -->
+            <svg class="icon-sound-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-              <line x1="23" y1="9" x2="17" y2="15"></line>
-              <line x1="17" y1="9" x2="23" y2="15"></line>
+              <line x1="22" y1="9" x2="16" y2="15"></line>
+              <line x1="16" y1="9" x2="22" y2="15"></line>
             </svg>
           </button>
 
           <button id="theme-toggle" type="button" class="header-action-btn" title="Toggle theme (Light / Dark)" aria-label="Toggle theme">
             <!-- Sun icon (shown when dark mode is active to switch to light) -->
-            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden style="display: none;">
-              <circle cx="12" cy="12" r="5"></circle>
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="4.5" fill="currentColor"></circle>
               <line x1="12" y1="1" x2="12" y2="3"></line>
               <line x1="12" y1="21" x2="12" y2="23"></line>
               <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>

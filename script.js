@@ -95,6 +95,7 @@
   var quranResetAllBtn = document.getElementById("quran-reset-all-btn");
   var themeToggleBtn = document.getElementById("theme-toggle");
   var soundToggleBtn = document.getElementById("sound-toggle");
+  var wakelockToggleBtn = document.getElementById("wakelock-toggle");
   var greetingTextEl = document.getElementById("greeting-text");
   var statTotalEl = document.getElementById("stat-total-count");
   var statActiveEl = document.getElementById("stat-active-count");
@@ -139,28 +140,14 @@
     var activeTheme = html.getAttribute("data-theme");
     var sun = themeToggleBtn.querySelector(".icon-sun");
     var moon = themeToggleBtn.querySelector(".icon-moon");
-    if (sun && moon) {
-      if (activeTheme === "dark") {
-        // Dark theme active: show Sun icon to switch to light mode
-        sun.hidden = false;
-        sun.classList.remove("hidden");
-        sun.style.display = "block";
-        moon.hidden = true;
-        moon.classList.add("hidden");
-        moon.style.display = "none";
-        themeToggleBtn.setAttribute("aria-label", "Switch to light theme");
-        themeToggleBtn.title = "Switch to Light theme";
-      } else {
-        // Light theme active: show Moon icon to switch to dark mode
-        sun.hidden = true;
-        sun.classList.add("hidden");
-        sun.style.display = "none";
-        moon.hidden = false;
-        moon.classList.remove("hidden");
-        moon.style.display = "block";
-        themeToggleBtn.setAttribute("aria-label", "Switch to dark theme");
-        themeToggleBtn.title = "Switch to Dark theme";
-      }
+    if (sun) sun.removeAttribute("hidden");
+    if (moon) moon.removeAttribute("hidden");
+    if (activeTheme === "dark") {
+      themeToggleBtn.setAttribute("aria-label", "Switch to light theme");
+      themeToggleBtn.title = "Current: Dark theme (click for Light)";
+    } else {
+      themeToggleBtn.setAttribute("aria-label", "Switch to dark theme");
+      themeToggleBtn.title = "Current: Light theme (click for Dark)";
     }
   }
 
@@ -266,28 +253,17 @@
 
   function updateSoundIcon() {
     if (!soundToggleBtn) return;
+    soundToggleBtn.setAttribute("data-sound", soundEnabled ? "on" : "off");
     var onIcon = soundToggleBtn.querySelector(".icon-sound-on");
     var offIcon = soundToggleBtn.querySelector(".icon-sound-off");
-    if (onIcon && offIcon) {
-      if (soundEnabled) {
-        onIcon.hidden = false;
-        onIcon.classList.remove("hidden");
-        onIcon.style.display = "block";
-        offIcon.hidden = true;
-        offIcon.classList.add("hidden");
-        offIcon.style.display = "none";
-        soundToggleBtn.title = "Sound enabled (click to mute)";
-        soundToggleBtn.setAttribute("aria-label", "Mute audio");
-      } else {
-        onIcon.hidden = true;
-        onIcon.classList.add("hidden");
-        onIcon.style.display = "none";
-        offIcon.hidden = false;
-        offIcon.classList.remove("hidden");
-        offIcon.style.display = "block";
-        soundToggleBtn.title = "Sound muted (click to unmute)";
-        soundToggleBtn.setAttribute("aria-label", "Unmute audio");
-      }
+    if (onIcon) onIcon.removeAttribute("hidden");
+    if (offIcon) offIcon.removeAttribute("hidden");
+    if (soundEnabled) {
+      soundToggleBtn.title = "Sound: ON (click to mute)";
+      soundToggleBtn.setAttribute("aria-label", "Mute audio");
+    } else {
+      soundToggleBtn.title = "Sound: MUTED (click to enable)";
+      soundToggleBtn.setAttribute("aria-label", "Unmute audio");
     }
   }
 
@@ -296,6 +272,80 @@
     try { window.localStorage.setItem(SOUND_KEY, soundEnabled ? "1" : "0"); } catch (e) {}
     updateSoundIcon();
     if (soundEnabled) playCheckSound();
+  }
+
+  // ---------- Screen Wake Lock API (Keep mobile screen awake) ----------
+  var WAKELOCK_KEY = "fikra-wakelock";
+  var wakeLockSentinel = null;
+  var wakeLockEnabled = true;
+  try {
+    var storedWake = window.localStorage.getItem(WAKELOCK_KEY);
+    if (storedWake !== null) wakeLockEnabled = storedWake === "1";
+  } catch (e) { wakeLockEnabled = true; }
+
+  function wakeLockSupported() {
+    return typeof navigator !== "undefined" && "wakeLock" in navigator;
+  }
+
+  function updateWakeLockUI() {
+    if (!wakelockToggleBtn) return;
+    wakelockToggleBtn.setAttribute("data-wakelock", wakeLockEnabled ? "on" : "off");
+    var onIcon = wakelockToggleBtn.querySelector(".icon-wakelock-on");
+    var offIcon = wakelockToggleBtn.querySelector(".icon-wakelock-off");
+    if (onIcon) onIcon.removeAttribute("hidden");
+    if (offIcon) offIcon.removeAttribute("hidden");
+    if (wakeLockEnabled) {
+      wakelockToggleBtn.title = wakeLockSupported()
+        ? "Screen Stay-Awake: ON (Screen won't turn off while app is open)"
+        : "Screen Stay-Awake: ON";
+      wakelockToggleBtn.setAttribute("aria-label", "Turn off screen stay-awake");
+    } else {
+      wakelockToggleBtn.title = "Screen Stay-Awake: OFF (Screen will turn off normally)";
+      wakelockToggleBtn.setAttribute("aria-label", "Turn on screen stay-awake");
+    }
+  }
+
+  function requestWakeLock() {
+    if (!wakeLockEnabled || !wakeLockSupported()) {
+      updateWakeLockUI();
+      return;
+    }
+    try {
+      if (wakeLockSentinel && !wakeLockSentinel.released) return;
+      navigator.wakeLock.request("screen").then(function (sentinel) {
+        wakeLockSentinel = sentinel;
+        sentinel.addEventListener("release", function () {
+          wakeLockSentinel = null;
+          updateWakeLockUI();
+        });
+        updateWakeLockUI();
+      }).catch(function () {
+        updateWakeLockUI();
+      });
+    } catch (e) {
+      updateWakeLockUI();
+    }
+  }
+
+  function releaseWakeLock() {
+    if (wakeLockSentinel) {
+      try { wakeLockSentinel.release(); } catch (e) {}
+      wakeLockSentinel = null;
+    }
+    updateWakeLockUI();
+  }
+
+  function toggleWakeLock() {
+    wakeLockEnabled = !wakeLockEnabled;
+    try { window.localStorage.setItem(WAKELOCK_KEY, wakeLockEnabled ? "1" : "0"); } catch (e) {}
+    if (wakeLockEnabled) {
+      requestWakeLock();
+      playCheckSound();
+    } else {
+      releaseWakeLock();
+      playUncheckSound();
+    }
+    updateWakeLockUI();
   }
 
   // ---------- Confetti Celebration (Pure Canvas, 0 dependencies) ----------
@@ -1685,9 +1735,29 @@
     }
   });
 
-  // Theme & Sound Buttons
+  // Theme, Sound & WakeLock Buttons
   if (themeToggleBtn) themeToggleBtn.addEventListener("click", cycleTheme);
   if (soundToggleBtn) soundToggleBtn.addEventListener("click", toggleSound);
+  if (wakelockToggleBtn) wakelockToggleBtn.addEventListener("click", toggleWakeLock);
+
+  // Maintain screen wake lock while app is in active use
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && wakeLockEnabled) {
+      requestWakeLock();
+    } else if (document.hidden) {
+      releaseWakeLock();
+    }
+  });
+  window.addEventListener("focus", function () {
+    if (wakeLockEnabled) requestWakeLock();
+  });
+  ["click", "touchstart", "keydown"].forEach(function (evName) {
+    document.addEventListener(evName, function () {
+      if (wakeLockEnabled && !wakeLockSentinel) {
+        requestWakeLock();
+      }
+    }, { passive: true });
+  });
 
   // Rollover Watcher
   function startRolloverWatch() {
@@ -1717,6 +1787,8 @@
   // ---------- Init ----------
   applyTheme(currentTheme);
   updateSoundIcon();
+  updateWakeLockUI();
+  if (wakeLockEnabled) requestWakeLock();
   ensureTodayFresh();
   if (!storageOK) showStorageWarning();
   renderAll();
@@ -1806,7 +1878,11 @@
       quranStats: quranStats,
       createQuranPlan: createQuranPlan,
       clearQuranPlan: clearQuranPlan,
-      toggleQuranPage: toggleQuranPage
+      toggleQuranPage: toggleQuranPage,
+      wakeLockSupported: wakeLockSupported,
+      requestWakeLock: requestWakeLock,
+      releaseWakeLock: releaseWakeLock,
+      toggleWakeLock: toggleWakeLock
     };
   }
 })();

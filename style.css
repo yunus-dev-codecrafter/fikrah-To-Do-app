@@ -399,6 +399,59 @@ body {
 .header-action-btn svg.hidden {
   display: none !important;
 }
+
+/* Theme Toggle Button: strictly one icon displayed */
+#theme-toggle .icon-sun,
+#theme-toggle .icon-moon {
+  display: none !important;
+}
+[data-theme="dark"] #theme-toggle .icon-sun {
+  display: block !important;
+  color: #fbbf24 !important;
+  filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.6));
+}
+[data-theme="light"] #theme-toggle .icon-moon {
+  display: block !important;
+  color: var(--ink) !important;
+}
+
+/* Sound Toggle Button: strictly one icon displayed */
+#sound-toggle .icon-sound-on,
+#sound-toggle .icon-sound-off {
+  display: none !important;
+}
+#sound-toggle[data-sound="on"] .icon-sound-on {
+  display: block !important;
+  color: var(--accent) !important;
+}
+#sound-toggle[data-sound="off"] .icon-sound-off {
+  display: block !important;
+  color: #f43f5e !important;
+}
+#sound-toggle[data-sound="off"] {
+  border-color: rgba(244, 63, 94, 0.35);
+  background: rgba(244, 63, 94, 0.08);
+}
+
+/* Wake Lock Toggle Button: keeps mobile screen awake */
+#wakelock-toggle .icon-wakelock-on,
+#wakelock-toggle .icon-wakelock-off {
+  display: none !important;
+}
+#wakelock-toggle[data-wakelock="on"] .icon-wakelock-on {
+  display: block !important;
+  color: #10b981 !important;
+  filter: drop-shadow(0 0 5px rgba(16, 185, 129, 0.5));
+}
+#wakelock-toggle[data-wakelock="on"] {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.1);
+}
+#wakelock-toggle[data-wakelock="off"] .icon-wakelock-off {
+  display: block !important;
+  color: var(--muted) !important;
+}
+
 .header-action-btn:hover {
   background: var(--card-hover);
   border-color: var(--accent);
