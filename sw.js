@@ -5,7 +5,7 @@
 */
 "use strict";
 
-var CACHE = "fikra-todo-v1";
+var CACHE = "fikra-todo-v2";
 var CORE = [
   "./",
   "./index.html",
