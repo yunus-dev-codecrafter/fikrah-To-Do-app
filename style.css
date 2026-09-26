@@ -235,6 +235,12 @@ body {
 }
 
 /* Accessibility */
+[hidden],
+[hidden="true"],
+.hidden {
+  display: none !important;
+}
+
 .visually-hidden {
   position: absolute !important;
   width: 1px; height: 1px;
@@ -382,6 +388,16 @@ body {
   cursor: pointer;
   transition: all var(--duration) var(--ease);
   box-shadow: var(--shadow-sm);
+  position: relative;
+}
+.header-action-btn svg {
+  display: block;
+  pointer-events: none;
+  flex: none;
+}
+.header-action-btn svg[hidden],
+.header-action-btn svg.hidden {
+  display: none !important;
 }
 .header-action-btn:hover {
   background: var(--card-hover);
@@ -576,8 +592,7 @@ a:focus-visible {
 /* ==========================================================================
    Banner Cards: Install PWA & Reminders
    ========================================================================== */
-.install-card,
-.reminder-card {
+.install-card {
   padding: 16px;
   display: flex;
   align-items: flex-start;
@@ -613,8 +628,7 @@ a:focus-visible {
 .reminder-text {
   flex: 1 1 240px;
 }
-.install-card h2,
-.reminder-card h2 {
+.install-card h2 {
   font-size: 1.05rem;
   font-weight: 750;
   letter-spacing: -0.01em;
@@ -635,6 +649,87 @@ a:focus-visible {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+/* Collapsible Reminder Card */
+.reminder-card {
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, var(--card) 0%, var(--card-elevated) 100%);
+  transition: all var(--duration) var(--ease);
+}
+.reminder-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+  width: 100%;
+}
+.reminder-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.reminder-header-text {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.reminder-card h2 {
+  font-size: 1.05rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  margin: 0;
+  color: var(--ink);
+}
+.reminder-pill-status {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  background: var(--warning-soft);
+  color: var(--warning);
+  border: 1px solid var(--warning-border);
+  transition: all var(--duration) ease;
+}
+.reminder-pill-status.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-soft-border);
+}
+.reminder-pill-status.blocked {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+.reminder-chevron {
+  transition: transform 0.25s var(--ease);
+  color: var(--muted);
+}
+.reminder-card:not(.reminder-collapsed) .reminder-chevron {
+  transform: rotate(180deg);
+}
+
+.reminder-body-content {
+  overflow: hidden;
+  transition: max-height 0.3s var(--ease), opacity 0.25s ease, margin-top 0.25s ease;
+  max-height: 500px;
+  opacity: 1;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-subtle);
+}
+.reminder-card.reminder-collapsed .reminder-body-content {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  padding-top: 0;
+  border-top-color: transparent;
+  pointer-events: none;
 }
 
 /* ==========================================================================

@@ -70,6 +70,10 @@
   var installFallbackEl = document.getElementById("install-fallback");
   var reminderBtn = document.getElementById("reminder-btn");
   var reminderStatusEl = document.getElementById("reminder-status");
+  var reminderCardEl = document.getElementById("reminder-card");
+  var reminderToggleBar = document.getElementById("reminder-toggle-bar");
+  var reminderCollapseBtn = document.getElementById("reminder-collapse-btn");
+  var reminderPillStatus = document.getElementById("reminder-pill-status");
   var quranSectionEl = document.getElementById("quran-section");
   var quranFormEl = document.getElementById("quran-form");
   var quranStartEl = document.getElementById("quran-start");
@@ -137,15 +141,25 @@
     var moon = themeToggleBtn.querySelector(".icon-moon");
     if (sun && moon) {
       if (activeTheme === "dark") {
+        // Dark theme active: show Sun icon to switch to light mode
         sun.hidden = false;
+        sun.classList.remove("hidden");
+        sun.style.display = "block";
         moon.hidden = true;
+        moon.classList.add("hidden");
+        moon.style.display = "none";
         themeToggleBtn.setAttribute("aria-label", "Switch to light theme");
-        themeToggleBtn.title = "Current: Dark theme (click for Light)";
+        themeToggleBtn.title = "Switch to Light theme";
       } else {
+        // Light theme active: show Moon icon to switch to dark mode
         sun.hidden = true;
+        sun.classList.add("hidden");
+        sun.style.display = "none";
         moon.hidden = false;
+        moon.classList.remove("hidden");
+        moon.style.display = "block";
         themeToggleBtn.setAttribute("aria-label", "Switch to dark theme");
-        themeToggleBtn.title = "Current: Light theme (click for Dark)";
+        themeToggleBtn.title = "Switch to Dark theme";
       }
     }
   }
@@ -255,10 +269,25 @@
     var onIcon = soundToggleBtn.querySelector(".icon-sound-on");
     var offIcon = soundToggleBtn.querySelector(".icon-sound-off");
     if (onIcon && offIcon) {
-      onIcon.hidden = !soundEnabled;
-      offIcon.hidden = soundEnabled;
-      soundToggleBtn.title = soundEnabled ? "Sound enabled (click to mute)" : "Sound muted (click to unmute)";
-      soundToggleBtn.setAttribute("aria-label", soundEnabled ? "Mute audio" : "Unmute audio");
+      if (soundEnabled) {
+        onIcon.hidden = false;
+        onIcon.classList.remove("hidden");
+        onIcon.style.display = "block";
+        offIcon.hidden = true;
+        offIcon.classList.add("hidden");
+        offIcon.style.display = "none";
+        soundToggleBtn.title = "Sound enabled (click to mute)";
+        soundToggleBtn.setAttribute("aria-label", "Mute audio");
+      } else {
+        onIcon.hidden = true;
+        onIcon.classList.add("hidden");
+        onIcon.style.display = "none";
+        offIcon.hidden = false;
+        offIcon.classList.remove("hidden");
+        offIcon.style.display = "block";
+        soundToggleBtn.title = "Sound muted (click to unmute)";
+        soundToggleBtn.setAttribute("aria-label", "Unmute audio");
+      }
     }
   }
 
@@ -1181,18 +1210,34 @@
     if (p === "unsupported") {
       reminderStatusEl.textContent = STRINGS.reminderUnsupported;
       reminderBtn.hidden = true;
+      if (reminderPillStatus) {
+        reminderPillStatus.textContent = "Unsupported";
+        reminderPillStatus.className = "reminder-pill-status";
+      }
     } else if (p === "granted") {
       reminderStatusEl.textContent = STRINGS.reminderOn;
       if (span) span.textContent = "Reminders on ✓";
       reminderBtn.disabled = true;
+      if (reminderPillStatus) {
+        reminderPillStatus.textContent = "Active ✓";
+        reminderPillStatus.className = "reminder-pill-status active";
+      }
     } else if (p === "denied") {
       reminderStatusEl.textContent = STRINGS.reminderDenied;
       if (span) span.textContent = "Try enabling again 🔔";
       reminderBtn.disabled = false;
+      if (reminderPillStatus) {
+        reminderPillStatus.textContent = "Blocked ⚠";
+        reminderPillStatus.className = "reminder-pill-status blocked";
+      }
     } else {
       reminderStatusEl.textContent = STRINGS.reminderOff;
       if (span) span.textContent = "Enable Reminders";
       reminderBtn.disabled = false;
+      if (reminderPillStatus) {
+        reminderPillStatus.textContent = "Turn on 🔔";
+        reminderPillStatus.className = "reminder-pill-status";
+      }
     }
   }
 
@@ -1296,43 +1341,102 @@
   function isStandalone() {
     try {
       if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
+      if (window.matchMedia && window.matchMedia("(display-mode: window-controls-overlay)").matches) return true;
       if (window.navigator.standalone === true) return true;
+      if (document.referrer && document.referrer.indexOf("android-app://") !== -1) return true;
     } catch (e) {}
     return false;
   }
   function dismissedBefore() {
     try { return window.localStorage.getItem(INSTALL_SEEN_KEY) === "1"; } catch (e) { return true; }
   }
+  function hideInstallCard() {
+    if (installSectionEl) {
+      installSectionEl.hidden = true;
+      installSectionEl.style.display = "none";
+    }
+  }
+  function showInstallCard() {
+    if (installSectionEl && !isStandalone() && !dismissedBefore()) {
+      installSectionEl.hidden = false;
+      installSectionEl.style.display = "";
+    }
+  }
   function initInstall() {
     if (!installSectionEl) return;
-    if (isStandalone()) {
-      installSectionEl.hidden = true;
+    // Always hide if standalone (already installed app) or dismissed before
+    if (isStandalone() || dismissedBefore()) {
+      hideInstallCard();
       return;
     }
-    var canPrompt = ("BeforeInstallPromptEvent" in window) || ("onbeforeinstallprompt" in window);
+    // Check if browser detects it is already installed
+    if (navigator.getInstalledRelatedApps) {
+      navigator.getInstalledRelatedApps().then(function (apps) {
+        if (apps && apps.length > 0) {
+          hideInstallCard();
+          try { window.localStorage.setItem(INSTALL_SEEN_KEY, "1"); } catch (e) {}
+        }
+      }).catch(function () {});
+    }
     window.addEventListener("beforeinstallprompt", function (e) {
       e.preventDefault();
       deferredPrompt = e;
-      if (!dismissedBefore()) installSectionEl.hidden = false;
+      if (!dismissedBefore() && !isStandalone()) {
+        showInstallCard();
+      }
       if (installFallbackEl) installFallbackEl.hidden = true;
       if (installBtn) installBtn.hidden = false;
     });
     window.addEventListener("appinstalled", function () {
       deferredPrompt = null;
-      installSectionEl.hidden = true;
+      hideInstallCard();
       try { window.localStorage.setItem(INSTALL_SEEN_KEY, "1"); } catch (e) {}
     });
-    if (!dismissedBefore()) {
-      window.setTimeout(function () {
-        if (!deferredPrompt && !isStandalone() && canPrompt === false) {
-          installSectionEl.hidden = false;
-          if (installFallbackEl) installFallbackEl.hidden = false;
-          if (installBtn) installBtn.hidden = true;
-        }
-      }, 1500);
-    }
-    void canPrompt;
   }
+
+  // ---------- Collapsible Reminders Card ----------
+  var REMINDER_COLLAPSED_KEY = "fikra-reminder-collapsed";
+  function toggleReminderCollapse() {
+    if (!reminderCardEl) return;
+    var isCollapsed = reminderCardEl.classList.toggle("reminder-collapsed");
+    try { window.localStorage.setItem(REMINDER_COLLAPSED_KEY, isCollapsed ? "1" : "0"); } catch (e) {}
+    if (reminderToggleBar) {
+      reminderToggleBar.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+    }
+  }
+  if (reminderToggleBar) {
+    reminderToggleBar.addEventListener("click", function (ev) {
+      if (ev.target.closest("#reminder-btn")) return;
+      toggleReminderCollapse();
+    });
+    reminderToggleBar.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        toggleReminderCollapse();
+      }
+    });
+  }
+  if (reminderCollapseBtn) {
+    reminderCollapseBtn.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      toggleReminderCollapse();
+    });
+  }
+  // Initialize reminder card collapsed state
+  try {
+    var storedReminderState = window.localStorage.getItem(REMINDER_COLLAPSED_KEY);
+    if (storedReminderState === null || storedReminderState === "1") {
+      if (reminderCardEl) {
+        reminderCardEl.classList.add("reminder-collapsed");
+        if (reminderToggleBar) reminderToggleBar.setAttribute("aria-expanded", "false");
+      }
+    } else {
+      if (reminderCardEl) {
+        reminderCardEl.classList.remove("reminder-collapsed");
+        if (reminderToggleBar) reminderToggleBar.setAttribute("aria-expanded", "true");
+      }
+    }
+  } catch (e) {}
 
   // ---------- Events & Keybindings ----------
   if (formEl) {

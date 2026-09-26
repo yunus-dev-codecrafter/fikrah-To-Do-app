@@ -59,16 +59,16 @@
               <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
               <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
             </svg>
-            <svg class="icon-sound-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+            <svg class="icon-sound-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden style="display: none;">
               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
               <line x1="23" y1="9" x2="17" y2="15"></line>
               <line x1="17" y1="9" x2="23" y2="15"></line>
             </svg>
           </button>
 
-          <button id="theme-toggle" type="button" class="header-action-btn" title="Toggle theme (System / Light / Dark)" aria-label="Toggle theme">
-            <!-- Sun icon -->
-            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <button id="theme-toggle" type="button" class="header-action-btn" title="Toggle theme (Light / Dark)" aria-label="Toggle theme">
+            <!-- Sun icon (shown when dark mode is active to switch to light) -->
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden style="display: none;">
               <circle cx="12" cy="12" r="5"></circle>
               <line x1="12" y1="1" x2="12" y2="3"></line>
               <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -79,8 +79,8 @@
               <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
               <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
             </svg>
-            <!-- Moon icon -->
-            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+            <!-- Moon icon (shown when light mode is active to switch to dark) -->
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
             </svg>
           </button>
@@ -114,8 +114,8 @@
     </header>
 
     <main class="app-main">
-      <!-- PWA Install Banner (Modern Glass Card) -->
-      <section id="pwa-install" class="install-card glass-surface" hidden aria-labelledby="install-heading">
+      <!-- PWA Install Banner (Hidden when already installed or standalone) -->
+      <section id="pwa-install" class="install-card glass-surface" hidden style="display: none;" aria-labelledby="install-heading">
         <div class="card-icon-bubble" aria-hidden="true">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -136,27 +136,42 @@
         </div>
       </section>
 
-      <!-- Reminders Banner (Modern Glass Card) -->
-      <section class="reminder-card glass-surface" aria-labelledby="reminder-heading">
-        <div class="card-icon-bubble bell-bubble" aria-hidden="true">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-          </svg>
-        </div>
-        <div class="reminder-content">
-          <div class="reminder-text">
-            <h2 id="reminder-heading">Smart Reminders</h2>
-            <p id="reminder-status" role="status">Enable notifications to receive gentle prompts at each task's scheduled time.</p>
-            <p class="reliability-note">Background timing is most reliable while the app or installed PWA is open or recently used.</p>
+      <!-- Reminders Banner (Modern Glass Card - Collapsible) -->
+      <section id="reminder-card" class="reminder-card glass-surface reminder-collapsed" aria-labelledby="reminder-heading">
+        <div id="reminder-toggle-bar" class="reminder-header-bar" role="button" tabindex="0" aria-expanded="false" aria-controls="reminder-body-content" title="Click to open or close reminders">
+          <div class="reminder-header-left">
+            <div class="card-icon-bubble bell-bubble" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+              </svg>
+            </div>
+            <div class="reminder-header-text">
+              <h2 id="reminder-heading">Smart Reminders</h2>
+              <span id="reminder-pill-status" class="reminder-pill-status">Turn on 🔔</span>
+            </div>
           </div>
-          <button id="reminder-btn" type="button" class="btn-secondary btn-sm">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          <button id="reminder-collapse-btn" type="button" class="icon-btn-minimal reminder-collapse-btn" aria-label="Toggle reminders card">
+            <svg class="reminder-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
-            <span>Enable Reminders</span>
           </button>
+        </div>
+
+        <div id="reminder-body-content" class="reminder-body-content">
+          <div class="reminder-content">
+            <div class="reminder-text">
+              <p id="reminder-status" role="status">Enable notifications to receive gentle prompts at each task's scheduled time.</p>
+              <p class="reliability-note">Background timing is most reliable while the app or installed PWA is open or recently used.</p>
+            </div>
+            <button id="reminder-btn" type="button" class="btn-secondary btn-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+              </svg>
+              <span>Enable Reminders</span>
+            </button>
+          </div>
         </div>
       </section>
 
