@@ -1,26 +1,39 @@
-/* Fikra To-Do — Phase One
-   Sections: constants | date utils | storage | state + task ops | rendering | events | init
+/* Fikra To-Do — Phase One + PWA/Reminders (§22–§35)
+   Sections: constants | date utils | storage | state + task ops | rendering |
+             reminders | install | events | init
    Future i18n: all UI strings live in STRINGS so EN/AR toggle can be added later.
 */
 (function () {
   "use strict";
 
   var STORAGE_KEY = "fikra-todo-v1";
+  var INSTALL_SEEN_KEY = "fikra-pwa-install-dismissed";
   var MAX_TEXT_LENGTH = 500;
   var ROLLOVER_CHECK_MS = 30000;
+  var REMINDER_CHECK_MS = 20000;
 
   // Centralized UI strings (future localization point).
   var STRINGS = {
     emptyTaskError: "Please type a task before adding.",
+    invalidTimeError: "That time doesn't look valid — pick a time or leave it empty.",
     storageUnavailable: "Browser storage is unavailable — tasks will work for this session only and won't persist after reload.",
     summaryNone: "0 of 0 tasks completed",
-    loadDateFallback: "Today"
+    loadDateFallback: "Today",
+    reminderOn: "Reminders are on — you'll be notified at each task's time.",
+    reminderOff: "Enable notifications to get reminded at each task's time.",
+    reminderDenied: "Notifications are blocked — tasks still work. Re-enable them in your browser/site settings, then try again.",
+    reminderUnsupported: "This browser doesn't support notifications — tasks still work normally.",
+    reminderGranted: "Reminders enabled ✓",
+    notifDuePrefixEn: "🔔 It's time:",
+    notifDuePrefixAr: "🔔 حان وقت:",
+    appName: "Fikra To-Do"
   };
 
   // ---------- DOM ----------
   var dateEl = document.getElementById("current-date");
   var formEl = document.getElementById("task-form");
   var inputEl = document.getElementById("task-input");
+  var timeEl = document.getElementById("task-time");
   var errorEl = document.getElementById("form-error");
   var listEl = document.getElementById("task-list");
   var emptyStateEl = document.getElementById("empty-state");
@@ -30,6 +43,12 @@
   var progressFillEl = document.getElementById("progress-fill");
   var celebrationEl = document.getElementById("celebration");
   var storageWarningEl = document.getElementById("storage-warning");
+  var installSectionEl = document.getElementById("pwa-install");
+  var installBtn = document.getElementById("install-btn");
+  var installDismissBtn = document.getElementById("install-dismiss");
+  var installFallbackEl = document.getElementById("install-fallback");
+  var reminderBtn = document.getElementById("reminder-btn");
+  var reminderStatusEl = document.getElementById("reminder-status");
 
   // ---------- Date utils ----------
   // Local calendar key, e.g. "2026-09-26". Never UTC — must follow user's local day.
@@ -62,19 +81,51 @@
     }
   }
 
+  // ---------- Time utils (optional per-task reminder, "HH:MM" 24h) ----------
+  var TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+  function isValidTime(v) {
+    return typeof v === "string" && TIME_RE.test(v);
+  }
+  function normalizeTime(v) {
+    if (v === null || v === undefined || v === "") return null;
+    return isValidTime(v) ? v : null;
+  }
+  function minutesOf(hhmm) {
+    var p = hhmm.split(":");
+    return parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
+  }
+  function nowMinutes(now) {
+    return now.getHours() * 60 + now.getMinutes();
+  }
+  function containsArabic(s) {
+    return /[\u0600-\u06FF]/.test(s || "");
+  }
+  // "19:00" -> "7:00 PM" for chips; keeps native input value untouched.
+  function formatTime12(hhmm) {
+    if (!isValidTime(hhmm)) return "";
+    var h = parseInt(hhmm.slice(0, 2), 10);
+    var m = hhmm.slice(3, 5);
+    var suffix = h >= 12 ? "PM" : "AM";
+    var h12 = h % 12;
+    if (h12 === 0) h12 = 12;
+    return h12 + ":" + m + " " + suffix;
+  }
+
   // ---------- Storage ----------
   var memoryFallback = null;
   var storageOK = true;
 
   function isValidTask(t, index) {
-    return (
-      t &&
-      typeof t.id === "string" &&
-      typeof t.text === "string" &&
-      typeof t.completed === "boolean" &&
-      typeof t.createdAt === "number" &&
-      typeof t.order === "number"
-    );
+    if (!t || typeof t.id !== "string" || typeof t.text !== "string" ||
+        typeof t.completed !== "boolean" || typeof t.createdAt !== "number" ||
+        typeof t.order !== "number") {
+      return false;
+    }
+    // Optional timed-reminder fields (must be well-formed when present).
+    if (t.time !== undefined && t.time !== null && !isValidTime(t.time)) return false;
+    if (t.date !== undefined && typeof t.date !== "string") return false;
+    if (t.reminderTriggered !== undefined && typeof t.reminderTriggered !== "boolean") return false;
+    return true;
   }
 
   function blankState(dateKey) {
@@ -97,13 +148,17 @@
         return blankState(key);
       }
       // Strict validation: drop malformed entries instead of crashing.
+      // In-place migration: old tasks without timed fields get defaults.
       var clean = parsed.tasks.filter(isValidTask).map(function (t) {
         return {
           id: t.id,
           text: t.text.slice(0, MAX_TEXT_LENGTH),
+          date: (typeof t.date === "string" && t.date) || parsed.date || key,
+          time: normalizeTime(t.time === undefined ? null : t.time),
           completed: t.completed,
           createdAt: t.createdAt,
-          order: t.order
+          order: t.order,
+          reminderTriggered: t.reminderTriggered === true
         };
       });
       // Stable order.
@@ -166,20 +221,32 @@
     return max + 1;
   }
 
-  function addTask(rawText) {
+  function addTask(rawText, rawTime) {
     var text = (rawText || "").trim();
     if (!text) return { ok: false, error: STRINGS.emptyTaskError };
+    var time = normalizeTime(rawTime === undefined ? (timeEl && timeEl.value ? timeEl.value : null) : rawTime);
+    if (rawTime !== undefined && rawTime !== null && rawTime !== "" && time === null) {
+      return { ok: false, error: STRINGS.invalidTimeError };
+    }
+    // If the visible time field holds garbage the browser didn't sanitize, reject kindly.
+    if (rawTime === undefined && timeEl && timeEl.value && !isValidTime(timeEl.value)) {
+      return { ok: false, error: STRINGS.invalidTimeError };
+    }
     text = text.slice(0, MAX_TEXT_LENGTH);
     state.tasks.push({
       id: makeId(),
       text: text,
+      date: todayKey(),
+      time: time,
       completed: false,
       createdAt: Date.now(),
-      order: nextOrder()
+      order: nextOrder(),
+      reminderTriggered: false
     });
     saveState(state);
     renderTasks();
     renderSummary();
+    checkDueReminders(new Date());
     return { ok: true };
   }
 
@@ -187,9 +254,20 @@
     var t = findTask(id);
     if (!t) return;
     t.completed = !t.completed;
+    if (t.completed) {
+      // A completed task must never notify again.
+      t.reminderTriggered = true;
+    } else if (t.time && t.date === todayKey()) {
+      // Re-armed only if its time is still in the future today.
+      try {
+        var mins = minutesOf(t.time);
+        if (nowMinutes(new Date()) < mins) t.reminderTriggered = false;
+      } catch (e) { /* keep flag as-is */ }
+    }
     saveState(state);
     renderTasks();
     renderSummary();
+    checkDueReminders(new Date());
   }
 
   function deleteTask(id) {
@@ -218,7 +296,35 @@
     return null;
   }
 
+  function taskReminderState(task, now) {
+    // Upcoming | Due | Completed | Overdue (timed tasks only; untimed -> "none").
+    if (!task.time) return "none";
+    if (task.completed) return "completed";
+    if (task.date !== todayKey()) return "upcoming";
+    var dueMins = minutesOf(task.time);
+    var nowM = nowMinutes(now || new Date());
+    if (nowM < dueMins) return "upcoming";
+    return task.reminderTriggered ? "overdue" : "due";
+  }
+
+  function isOverdue(task, now) {
+    if (!task.time || task.completed) return false;
+    if (task.date !== todayKey()) return false;
+    return nowMinutes(now || new Date()) > minutesOf(task.time);
+  }
+
   // ---------- Rendering (safe: textContent only, never innerHTML with user text) ----------
+  function makeTimeChip(task) {
+    var chip = document.createElement("span");
+    chip.className = "task-time";
+    chip.setAttribute("dir", "ltr");
+    chip.textContent = "⏰ " + formatTime12(task.time);
+    var st = taskReminderState(task, new Date());
+    chip.setAttribute("data-state", st);
+    chip.setAttribute("aria-label", "Reminder at " + formatTime12(task.time) + ", " + st);
+    return chip;
+  }
+
   function renderAll() {
     renderDate();
     renderTasks();
@@ -259,7 +365,7 @@
 
     state.tasks.forEach(function (task) {
       var li = document.createElement("li");
-      li.className = "task-item" + (task.completed ? " completed" : "");
+      li.className = "task-item" + (task.completed ? " completed" : "") + (isOverdue(task, new Date()) ? " overdue" : "");
       li.dataset.id = task.id;
 
       // Completion toggle
@@ -275,11 +381,17 @@
       box.textContent = task.completed ? "✓" : "";
       check.appendChild(box);
 
-      // Text (dir=auto handles Arabic/English/mixed per-item)
+      // Text + optional time chip (dir=auto handles Arabic/English/mixed per-item)
+      var content = document.createElement("div");
+      content.className = "task-content";
       var span = document.createElement("span");
       span.className = "task-text";
       span.setAttribute("dir", "auto");
       span.textContent = task.text;
+      content.appendChild(span);
+      if (task.time) {
+        content.appendChild(makeTimeChip(task));
+      }
 
       // Actions
       var actions = document.createElement("div");
@@ -305,7 +417,7 @@
       actions.appendChild(del);
 
       li.appendChild(check);
-      li.appendChild(span);
+      li.appendChild(content);
       li.appendChild(actions);
       listEl.appendChild(li);
     });
@@ -382,10 +494,15 @@
         box.textContent = t.completed ? "✓" : "";
         check.appendChild(box);
 
+        var content = document.createElement("div");
+        content.className = "task-content";
         var span = document.createElement("span");
         span.className = "task-text";
         span.setAttribute("dir", "auto");
         span.textContent = t.text;
+        content.appendChild(span);
+        if (t.time) content.appendChild(makeTimeChip(t));
+        row.className = "task-item" + (t.completed ? " completed" : "") + (isOverdue(t, new Date()) ? " overdue" : "");
 
         var actions = document.createElement("div");
         actions.className = "task-actions";
@@ -405,7 +522,7 @@
         actions.appendChild(delBtn);
 
         row.appendChild(check);
-        row.appendChild(span);
+        row.appendChild(content);
         row.appendChild(actions);
         listEl.appendChild(row);
       }
@@ -427,11 +544,192 @@
     errorEl.hidden = true;
   }
 
+  // ---------- Reminders (Notification API + Service Worker) ----------
+  function notificationsSupported() {
+    return (typeof window !== "undefined" && ("Notification" in window)) ||
+      (typeof navigator !== "undefined" && "setAppBadge" in navigator);
+  }
+  function permissionState() {
+    try {
+      if (typeof Notification === "undefined") return "unsupported";
+      return Notification.permission || "default";
+    } catch (e) {
+      return "unsupported";
+    }
+  }
+
+  function renderReminderBar() {
+    if (!reminderBtn || !reminderStatusEl) return;
+    var p = permissionState();
+    if (p === "unsupported") {
+      reminderStatusEl.textContent = STRINGS.reminderUnsupported;
+      reminderBtn.hidden = true;
+    } else if (p === "granted") {
+      reminderStatusEl.textContent = STRINGS.reminderOn;
+      reminderBtn.textContent = "Reminders on ✓";
+      reminderBtn.disabled = true;
+    } else if (p === "denied") {
+      reminderStatusEl.textContent = STRINGS.reminderDenied;
+      reminderBtn.textContent = "Try enabling again 🔔";
+      reminderBtn.disabled = false;
+    } else {
+      reminderStatusEl.textContent = STRINGS.reminderOff;
+      reminderBtn.textContent = "Enable Reminders 🔔";
+      reminderBtn.disabled = false;
+    }
+  }
+
+  function dueTasks(now) {
+    var key = todayKey();
+    var nm = nowMinutes(now);
+    return state.tasks.filter(function (t) {
+      return t.time && !t.completed && !t.reminderTriggered && t.date === key && minutesOf(t.time) <= nm;
+    });
+  }
+
+  function notificationBody(task) {
+    var prefix = containsArabic(task.text) ? STRINGS.notifDuePrefixAr : STRINGS.notifDuePrefixEn;
+    return prefix + " " + task.text;
+  }
+
+  function fireNotification(task) {
+    var title = STRINGS.appName;
+    var body = notificationBody(task);
+    // Prefer persistent service-worker notification (works for installed PWA on Android).
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+        navigator.serviceWorker.ready.then(function (reg) {
+          if (reg && reg.showNotification) {
+            reg.showNotification(title, {
+              body: body,
+              tag: "fikra-" + task.id,
+              data: { taskId: task.id },
+              icon: "icons/icon-192.png",
+              badge: "icons/favicon-32.png"
+            }).catch(function () {
+              try { new Notification(title, { body: body, tag: "fikra-" + task.id }); } catch (e) { /* ignore */ }
+            });
+          } else {
+            try { new Notification(title, { body: body, tag: "fikra-" + task.id }); } catch (e) { /* ignore */ }
+          }
+        }).catch(function () {
+          try { new Notification(title, { body: body, tag: "fikra-" + task.id }); } catch (e) { /* ignore */ }
+        });
+      } else {
+        try { new Notification(title, { body: body }); } catch (e) { /* ignore */ }
+      }
+    } catch (e) { /* notifications unavailable — task list still updates */ }
+  }
+
+  function updateBadge() {
+    try {
+      var count = dueTasks(new Date()).length + state.tasks.filter(function (t) { return isOverdue(t, new Date()); }).length;
+      if ("setAppBadge" in navigator) {
+        if (count > 0) navigator.setAppBadge(count).catch(function () {});
+        else if ("clearAppBadge" in navigator) navigator.clearAppBadge().catch(function () {});
+      }
+    } catch (e) { /* badges unsupported — ignore */ }
+  }
+
+  function checkDueReminders(now) {
+    now = now || new Date();
+    // Midnight boundary first: never fire yesterday's reminders.
+    if (ensureTodayFresh()) return;
+    if (permissionState() !== "granted") {
+      // Still refresh overdue visuals even without permission.
+      renderTasks();
+      return;
+    }
+    var due = dueTasks(now);
+    if (due.length === 0) {
+      updateBadge();
+      return;
+    }
+    var changed = false;
+    due.forEach(function (t) {
+      t.reminderTriggered = true;
+      changed = true;
+      fireNotification(t);
+    });
+    if (changed) {
+      saveState(state);
+      renderTasks();
+      updateBadge();
+    }
+  }
+
+  function startReminderWatch() {
+    window.setInterval(function () { checkDueReminders(new Date()); }, REMINDER_CHECK_MS);
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) checkDueReminders(new Date());
+    });
+    window.addEventListener("focus", function () { checkDueReminders(new Date()); });
+  }
+
+  function focusTask(taskId) {
+    if (!taskId) return;
+    var sel = 'li[data-id="' + taskId.replace(/"/g, "") + '"]';
+    var row = listEl.querySelector(sel);
+    if (row) {
+      row.scrollIntoView({ block: "center", behavior: "smooth" });
+      row.classList.add("task-flash");
+      window.setTimeout(function () { row.classList.remove("task-flash"); }, 2400);
+    }
+  }
+
+  // ---------- PWA install ----------
+  var deferredPrompt = null;
+  function isStandalone() {
+    try {
+      if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
+      if (window.navigator.standalone === true) return true; // iOS
+    } catch (e) { /* ignore */ }
+    return false;
+  }
+  function dismissedBefore() {
+    try { return window.localStorage.getItem(INSTALL_SEEN_KEY) === "1"; } catch (e) { return true; }
+  }
+  function initInstall() {
+    if (!installSectionEl) return;
+    // Never prompt inside the installed app.
+    if (isStandalone()) {
+      installSectionEl.hidden = true;
+      return;
+    }
+    var canPrompt = ("BeforeInstallPromptEvent" in window) || ("onbeforeinstallprompt" in window);
+    window.addEventListener("beforeinstallprompt", function (e) {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (!dismissedBefore()) installSectionEl.hidden = false;
+      if (installFallbackEl) installFallbackEl.hidden = true;
+      if (installBtn) installBtn.hidden = false;
+    });
+    window.addEventListener("appinstalled", function () {
+      deferredPrompt = null;
+      installSectionEl.hidden = true;
+      try { window.localStorage.setItem(INSTALL_SEEN_KEY, "1"); } catch (e) {}
+    });
+    // Browser without programmatic prompt: show graceful manual instructions
+    // (but only outside standalone, and only once per user).
+    if (!dismissedBefore()) {
+      window.setTimeout(function () {
+        if (!deferredPrompt && !isStandalone() && canPrompt === false) {
+          // Chrome/Edge/Samsung will still fire beforeinstallprompt when eligible;
+          // show fallback text so users know the menu path.
+          installSectionEl.hidden = false;
+          if (installFallbackEl) installFallbackEl.hidden = false;
+          if (installBtn) installBtn.hidden = true;
+        }
+      }, 1500);
+    }
+    void canPrompt;
+  }
+
   // ---------- Events ----------
   formEl.addEventListener("submit", function (ev) {
     ev.preventDefault();
     ensureTodayFresh();
-    var res = addTask(inputEl.value);
+    var res = addTask(inputEl.value, timeEl ? timeEl.value : null);
     if (!res.ok) {
       showError(res.error);
       inputEl.focus();
@@ -439,6 +737,7 @@
     }
     hideError();
     inputEl.value = "";
+    if (timeEl) timeEl.value = "";
     inputEl.focus();
   });
 
@@ -480,18 +779,25 @@
   // ---------- Midnight rollover (no refresh required) ----------
   function startRolloverWatch() {
     window.setInterval(function () {
-      ensureTodayFresh();
-      renderDate();
+      if (ensureTodayFresh()) {
+        renderDate();
+        renderReminderBar();
+        updateBadge();
+      } else {
+        renderDate();
+      }
     }, ROLLOVER_CHECK_MS);
     document.addEventListener("visibilitychange", function () {
       if (!document.hidden) {
         ensureTodayFresh();
         renderDate();
+        checkDueReminders(new Date());
       }
     });
     window.addEventListener("focus", function () {
       ensureTodayFresh();
       renderDate();
+      checkDueReminders(new Date());
     });
   }
 
@@ -499,7 +805,67 @@
   ensureTodayFresh();
   if (!storageOK) showStorageWarning();
   renderAll();
+  renderReminderBar();
+  initInstall();
   startRolloverWatch();
+  startReminderWatch();
+  checkDueReminders(new Date());
+
+  if (installBtn) {
+    installBtn.addEventListener("click", function () {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function () {
+        deferredPrompt = null;
+        try { window.localStorage.setItem(INSTALL_SEEN_KEY, "1"); } catch (e) {}
+        if (installSectionEl) installSectionEl.hidden = true;
+      }).catch(function () {});
+    });
+  }
+  if (installDismissBtn) {
+    installDismissBtn.addEventListener("click", function () {
+      if (installSectionEl) installSectionEl.hidden = true;
+      try { window.localStorage.setItem(INSTALL_SEEN_KEY, "1"); } catch (e) {}
+    });
+  }
+  if (reminderBtn) {
+    reminderBtn.addEventListener("click", function () {
+      if (permissionState() === "unsupported") {
+        renderReminderBar();
+        return;
+      }
+      try {
+        var p = Notification.requestPermission();
+        if (p && p.then) {
+          p.then(function () {
+            renderReminderBar();
+            checkDueReminders(new Date());
+          }).catch(function () { renderReminderBar(); });
+        } else {
+          // Legacy callback form (older Samsung Internet).
+          Notification.requestPermission(function () {
+            renderReminderBar();
+            checkDueReminders(new Date());
+          });
+        }
+      } catch (e) {
+        renderReminderBar();
+      }
+    });
+  }
+  // Deep-link from notification tap: ?task=<id> or SW postMessage.
+  try {
+    var q = new URLSearchParams(window.location.search || "");
+    var deep = q.get("task");
+    if (deep) {
+      window.setTimeout(function () { focusTask(deep); }, 300);
+    }
+  } catch (e) { /* ignore */ }
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("message", function (ev) {
+      if (ev.data && ev.data.type === "FOCUS_TASK") focusTask(ev.data.taskId);
+    });
+  }
 
   // Safe test seam (does not alter prod behavior unless override is set externally).
   if (typeof window !== "undefined") {
@@ -507,7 +873,13 @@
       getLocalDateKey: getLocalDateKey,
       todayKey: todayKey,
       blankState: blankState,
-      isValidTask: isValidTask
+      isValidTask: isValidTask,
+      isValidTime: isValidTime,
+      formatTime12: formatTime12,
+      taskReminderState: taskReminderState,
+      dueTasks: dueTasks,
+      notificationBody: notificationBody,
+      getState: function () { return state; }
     };
   }
 })();

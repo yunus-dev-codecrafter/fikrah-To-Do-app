@@ -140,6 +140,25 @@ body {
   display: flex;
   gap: 10px;
 }
+#task-time {
+  flex: none;
+  width: 118px;
+  padding: 13px 10px;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--ink);
+  color-scheme: light;
+  background: #fbfcfb;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+  outline: none;
+  min-height: 48px;
+}
+#task-time:focus {
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
+}
 #task-input {
   flex: 1;
   min-width: 0;
@@ -184,9 +203,12 @@ body {
 .btn-primary:hover { filter: brightness(0.95); }
 .btn-primary:active { transform: translateY(1px); }
 .btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.btn-ghost:focus-visible,
 .icon-btn:focus-visible,
 .check-btn:focus-visible,
 #task-input:focus-visible,
+#task-time:focus-visible,
 .skip-link:focus-visible {
   outline: 3px solid rgba(15, 118, 110, 0.45);
   outline-offset: 2px;
@@ -334,11 +356,142 @@ body {
 .task-text {
   flex: 1;
   min-width: 0;
-  padding-top: 9px;
   font-size: 1rem;
   overflow-wrap: anywhere;
   word-break: break-word;
   line-height: 1.5;
+}
+.task-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding-top: 9px;
+}
+.task-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #eef2ef;
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.task-time[data-state="due"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: #cde7e2;
+}
+.task-time[data-state="overdue"] {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: #f3c4c0;
+}
+.task-time[data-state="completed"] {
+  opacity: 0.65;
+}
+.task-item.overdue {
+  border-color: #f3c4c0;
+  background: #fffafa;
+}
+.task-item.task-flash {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.25);
+}
+
+/* PWA install + reminders */
+.install-card,
+.reminder-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+.install-card h2,
+.reminder-card h2 {
+  margin: 0 0 6px;
+  font-size: 1.02rem;
+  letter-spacing: -0.01em;
+}
+.install-card p,
+.reminder-card p {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.install-row,
+.reminder-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.install-text,
+.reminder-text {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.install-text p:last-child,
+.reminder-text p:last-child {
+  margin-bottom: 0;
+}
+.install-fallback {
+  font-size: 0.85rem;
+}
+.reliability-note {
+  font-size: 0.8rem !important;
+  color: #9aa5a1 !important;
+}
+.install-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.btn-ghost {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--muted);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 0 16px;
+  min-height: 48px;
+  cursor: pointer;
+}
+.btn-ghost:hover {
+  background: #eef2ef;
+  color: var(--ink);
+}
+.btn-secondary {
+  appearance: none;
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--accent);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 0 16px;
+  min-height: 48px;
+  cursor: pointer;
+  flex: none;
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 .task-item.completed .task-text {
   text-decoration: line-through;
@@ -426,8 +579,35 @@ body {
   .app { padding: 32px 24px 48px; }
   .composer-card,
   .summary-card,
-  .list-card { padding: 20px; }
+  .list-card,
+  .install-card,
+  .reminder-card { padding: 20px; }
   .brand-name { font-size: 1.6rem; }
+}
+
+/* Narrow phones: stack composer so time picker + Add stay usable */
+@media (max-width: 480px) {
+  #task-form {
+    flex-wrap: wrap;
+  }
+  #task-input {
+    flex: 1 1 100%;
+  }
+  #task-time {
+    flex: 1 1 auto;
+    width: auto;
+  }
+  #add-btn {
+    flex: 1 1 auto;
+  }
+  .install-row,
+  .reminder-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .btn-secondary {
+    width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

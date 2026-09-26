@@ -8,6 +8,14 @@ Private by design — no account, no backend, no tracking. Tasks stay in your br
 
 - Add tasks (button or `Enter`), edit inline, mark complete / unmark, delete
 - Empty-input guard, 500-char limit, order preserved
+- Optional per-task reminder time (native time picker, mobile-friendly)
+- Reminder notifications via Notification API + persistent Service Worker notifications (EN/AR body)
+- Friendly permission flow: reminders enabled only via "Enable Reminders 🔔", never on load; denied/unsupported states degrade gracefully
+- Reminder states: upcoming / due / completed / overdue (overdue highlighted, completed never notifies)
+- Notification tap opens/focuses the app at the relevant task (`?task=<id>` deep-link + highlight)
+- App icon badge count where supported (Badging API, progressive enhancement)
+- Installable PWA: `manifest.json`, `display: standalone`, icons 192/512 + maskable, offline-cached core files
+- Install UI: one-tap Install when `beforeinstallprompt` fires, hidden when already installed/standalone, manual fallback instructions otherwise
 - Completion persists across refresh / close / reopen
 - Daily summary: `X of Y tasks completed` + progress bar + subtle all-done state
 - Empty-state message when no tasks
@@ -20,9 +28,12 @@ Private by design — no account, no backend, no tracking. Tasks stay in your br
 Only HTML, CSS, and vanilla JavaScript. Zero dependencies.
 
 ```
-index.html  — semantic layout, form, summary, list
+index.html  — semantic layout, form (+time input), install/reminder cards, summary, list
 style.css   — mobile-first premium minimal theme (CSS variables)
-script.js   — task ops, storage, date/reset logic, rendering, events
+script.js   — task ops, storage, date/reset logic, rendering, reminders, install, events
+manifest.json — PWA name, icons, colors, display: standalone, start_url/scope
+sw.js       — offline cache + notificationclick focus/deep-link
+icons/      — icon.svg source, icon-192/512.png, maskable-512.png, apple-touch-icon, favicon
 ```
 
 ## How the daily reset works
@@ -48,17 +59,19 @@ window.__fikraDateOverride = '2099-01-01'; // then trigger focus/reload
 
 ## How localStorage is used
 
-Key: `fikra-todo-v1`
+Key: `fikra-todo-v1` (same key as Phase One — old tasks migrate in place)
 
 ```json
 {
   "date": "2026-09-26",
   "tasks": [
-    { "id": "uuid", "text": "حفظ سورة البقرة", "completed": false, "createdAt": 1727..., "order": 0 }
+    { "id": "uuid", "text": "Study JavaScript", "date": "2026-09-26", "time": "19:00", "completed": false, "createdAt": 1727..., "order": 0, "reminderTriggered": false }
   ]
 }
 ```
 
+- `time`: `"HH:MM"` 24h or `null` (optional). `date`: owning calendar day. `reminderTriggered`: set once notified/completed so reminders never double-fire.
+- Old entries without `time/date/reminderTriggered` are normalized on load (`time: null`, `date: <stored date>`), never dropped.
 - Graceful on corrupted JSON, missing fields, or malformed entries (drops bad items, never crashes).
 - If storage is unavailable/quota-exceeded, falls back to in-memory with a non-blocking warning.
 - No unnecessary data stored; no external transmission.
@@ -76,6 +89,21 @@ Example tasks:
 - `Learn JavaScript`
 - `قراءة 10 صفحات من الكتاب 📚`
 
+## PWA: install + offline
+
+- `manifest.json`: `name "Fikra To-Do"`, `short_name "Fikra"`, `display: standalone`, `start_url/scope "./"`, `theme_color #0f766e`, `background_color #f4f5f4`, icons 192/512 (`any`) + 512 (`maskable`).
+- Install card appears only when `beforeinstallprompt` fires and the app isn't already `display-mode: standalone` (or iOS `navigator.standalone`); `appinstalled` hides it permanently. Unsupported browsers get manual fallback text (menu ⋮ → Install app / Add to Home screen). The site always works as a normal website.
+- `sw.js` caches core files (`index.html`, `style.css`, `script.js`, `manifest.json`, icons) cache-first, same-origin GET only; navigations fall back to cached `index.html` offline. Old caches purged on activate.
+- Service worker requires `http://localhost` or HTTPS — use `npx serve .` / `python -m http.server 8000`, not `file://`.
+
+## Reminders: how they work + honest limitation
+
+- Each task may carry an optional `time` (`<input type="time">`). Scheduler checks on load, add/edit/toggle, every ~20s, and on `visibilitychange`/`focus`.
+- When a task's `date === today`, `time <= now`, `!completed`, `!reminderTriggered` → mark triggered, persist, and show a **persistent Service Worker notification** (`registration.showNotification`, `tag: fikra-<id>`, `data.taskId`), with AR/EN body (`🔔 حان وقت: …` / `🔔 It's time: …`).
+- Tapping the notification focuses/opens the app at `?task=<id>` with a highlight pulse. Badge count via `navigator.setAppBadge()` where supported.
+- **Limitation (by design):** browsers do not guarantee exact background delivery at arbitrary times when the page/PWA is fully closed (no native alarm API on the web). Reminders are most reliable while the app or installed PWA is open or recently used. The in-app reliability note states this rather than promising native-grade scheduling.
+- Midnight reset retires the whole day's list; per-task `date` binding guarantees yesterday's reminders never refire.
+
 ## How to run locally
 
 No build step. Either:
@@ -91,8 +119,16 @@ No build step. Either:
 
 ## Project structure
 
-See Technologies above. Separation in `script.js`: date utils, storage, task ops, rendering, events.
+See Technologies above. Separation in `script.js`: date/time utils, storage + migration, task ops, rendering, reminders, install, events.
+
+## Testing checklist (PWA + reminders)
+
+- Install: manifest valid, icons load, install prompt shows once, installed launch is standalone, no repeat prompt when installed.
+- Offline: airplane-mode reload renders list; installed app opens without internet.
+- Notifications: grant → task due in 1 min notifies (EN + AR); completed never notifies; denied shows disabled state; unsupported degrades.
+- Date: midnight rollover starts a fresh list; yesterday's reminders never fire; per-task dates stay bound.
+- Responsive: small/large phones, tablet, laptop, desktop; no console errors.
 
 ## Future possibilities
 
-Accounts, cloud sync, categories, reminders, recurring tasks, stats, multi-language UI toggle, custom themes / dark mode, premium features. Architecture (date-keyed state, CSS variables, `STRINGS`) keeps these easy without implementing them now.
+Accounts, cloud sync, categories, recurring tasks, stats, multi-language UI toggle, custom themes / dark mode, premium features. Architecture (date-keyed state, CSS variables, `STRINGS`) keeps these easy without implementing them now.

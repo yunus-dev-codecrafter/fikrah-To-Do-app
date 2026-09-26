@@ -5,7 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="description" content="Fikra To-Do — a minimal daily to-do list with Arabic & English support and automatic midnight reset. Private, fast, local-only." />
   <meta name="theme-color" content="#0f766e" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Fikra" />
   <title>Fikra To-Do — Today's Tasks</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -31,6 +39,31 @@
     </header>
 
     <main class="app-main">
+      <section id="pwa-install" class="install-card" hidden aria-labelledby="install-heading">
+        <div class="install-row">
+          <div class="install-text">
+            <h2 id="install-heading">Install Fikra To-Do</h2>
+            <p id="install-desc">Get the app icon on your home screen and open it standalone, with offline access.</p>
+            <p id="install-fallback" class="install-fallback" hidden>Your browser doesn't support one-tap install — open the browser menu ⋮ and choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.</p>
+          </div>
+          <div class="install-actions">
+            <button id="install-btn" type="button" class="btn-primary">Install</button>
+            <button id="install-dismiss" type="button" class="btn-ghost">Not now</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="reminder-card" aria-labelledby="reminder-heading">
+        <div class="reminder-row">
+          <div class="reminder-text">
+            <h2 id="reminder-heading">Reminders</h2>
+            <p id="reminder-status" role="status">Enable notifications to get reminded at each task's time.</p>
+            <p class="reliability-note">Note: exact background timing depends on your browser/OS — reminders are most reliable while the app or PWA is open or recently used.</p>
+          </div>
+          <button id="reminder-btn" type="button" class="btn-secondary">Enable Reminders 🔔</button>
+        </div>
+      </section>
+
       <section class="composer-card" aria-labelledby="composer-heading">
         <h2 id="composer-heading" class="visually-hidden">Add a new task</h2>
         <form id="task-form" autocomplete="off" novalidate>
@@ -44,6 +77,14 @@
             placeholder="What do you want to accomplish today?"
             aria-describedby="form-error"
             enterkeyhint="done"
+          />
+          <label class="visually-hidden" for="task-time">Reminder time (optional)</label>
+          <input
+            id="task-time"
+            name="time"
+            type="time"
+            aria-label="Reminder time (optional)"
+            title="Optional reminder time"
           />
           <button id="add-btn" type="submit" class="btn-primary">
             <span aria-hidden="true">+</span> Add
@@ -86,5 +127,13 @@
   </div>
 
   <script src="script.js" defer></script>
+  <script>
+    // PWA service worker (requires http://localhost or HTTPS; file:// degrades gracefully).
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("./sw.js").catch(function () { /* offline/PWA unavailable — site still works */ });
+      });
+    }
+  </script>
 </body>
 </html>
