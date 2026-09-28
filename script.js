@@ -713,14 +713,40 @@
     if (inputEl) inputEl.focus({ preventScroll: true });
   }
 
-  function commitEdit(id, rawText) {
+  function commitEdit(id, rawText, rawTime, rawCategory, rawRecurring) {
     var t = findTask(id);
     if (!t) return { ok: false };
     var text = (rawText || "").trim();
     if (!text) return { ok: false, error: STRINGS.emptyTaskError };
+
+    var time = normalizeTime(rawTime === undefined ? t.time : rawTime);
+    if (rawTime !== undefined && rawTime !== null && rawTime !== "" && time === null) {
+      return { ok: false, error: STRINGS.invalidTimeError };
+    }
+
     t.text = text.slice(0, MAX_TEXT_LENGTH);
+    t.time = time;
+    if (rawCategory !== undefined) {
+      t.category = typeof rawCategory === "string" ? rawCategory : "";
+    }
+    if (rawRecurring !== undefined) {
+      t.recurring = !!rawRecurring;
+    }
+
+    // If scheduled time was changed or updated for today, re-evaluate reminder status
+    if (t.time && !t.completed && t.date === todayKey()) {
+      try {
+        var mins = minutesOf(t.time);
+        if (nowMinutes(new Date()) < mins) {
+          t.reminderTriggered = false;
+        }
+      } catch (e) {}
+    }
+
     saveState(state);
     renderTasks();
+    renderSummary();
+    checkDueReminders(new Date());
     return { ok: true };
   }
 
@@ -1106,8 +1132,14 @@
       row.dataset.id = t.id;
 
       if (t.id === task.id) {
-        var wrap = document.createElement("div");
-        wrap.className = "edit-row";
+        row.classList.add("edit-mode");
+
+        var container = document.createElement("div");
+        container.className = "task-edit-container";
+
+        // 1. Main row: Name input
+        var mainRow = document.createElement("div");
+        mainRow.className = "edit-main-row";
 
         var editInput = document.createElement("input");
         editInput.type = "text";
@@ -1116,39 +1148,150 @@
         editInput.setAttribute("aria-label", "Edit task text");
         editInput.maxLength = MAX_TEXT_LENGTH;
         editInput.value = t.text;
+        editInput.placeholder = "What do you want to achieve?";
+        mainRow.appendChild(editInput);
+        container.appendChild(mainRow);
 
-        var save = document.createElement("button");
-        save.type = "button";
-        save.className = "edit-save";
-        save.dataset.action = "save";
-        save.textContent = "Save";
+        // 2. Options row: Time picker, Category pills, and Fixed Daily toggle
+        var optionsRow = document.createElement("div");
+        optionsRow.className = "edit-options-row";
 
-        var cancel = document.createElement("button");
-        cancel.type = "button";
-        cancel.className = "edit-cancel";
-        cancel.dataset.action = "cancel";
-        cancel.textContent = "Cancel";
+        // Time picker
+        var timeWrapper = document.createElement("div");
+        timeWrapper.className = "edit-time-wrapper";
+        timeWrapper.title = "Reminder time (optional)";
 
-        wrap.appendChild(editInput);
-        wrap.appendChild(save);
-        wrap.appendChild(cancel);
-        row.appendChild(wrap);
+        var timeIcon = document.createElement("span");
+        timeIcon.className = "time-icon";
+        timeIcon.setAttribute("aria-hidden", "true");
+        timeIcon.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>';
+        timeWrapper.appendChild(timeIcon);
+
+        var timeInput = document.createElement("input");
+        timeInput.type = "time";
+        timeInput.className = "edit-time-input";
+        timeInput.setAttribute("aria-label", "Reminder time (optional)");
+        timeInput.value = t.time || "";
+        timeWrapper.appendChild(timeInput);
+
+        var clearTimeBtn = document.createElement("button");
+        clearTimeBtn.type = "button";
+        clearTimeBtn.className = "edit-time-clear-btn";
+        clearTimeBtn.title = "Clear reminder time";
+        clearTimeBtn.setAttribute("aria-label", "Clear reminder time");
+        clearTimeBtn.textContent = "✕";
+        clearTimeBtn.hidden = !t.time;
+        timeWrapper.appendChild(clearTimeBtn);
+
+        timeInput.addEventListener("input", function () {
+          clearTimeBtn.hidden = !timeInput.value;
+        });
+        clearTimeBtn.addEventListener("click", function () {
+          timeInput.value = "";
+          clearTimeBtn.hidden = true;
+          timeInput.focus();
+        });
+
+        optionsRow.appendChild(timeWrapper);
+
+        // Category selector pills
+        var catWrapper = document.createElement("div");
+        catWrapper.className = "edit-category-pills";
+        catWrapper.setAttribute("role", "radiogroup");
+        catWrapper.setAttribute("aria-label", "Task category");
+
+        var currentEditCategory = t.category || "";
+        var categories = [
+          { key: "", label: "General" },
+          { key: "deen", label: "📖 Deen" },
+          { key: "work", label: "💼 Work" },
+          { key: "study", label: "📚 Study" },
+          { key: "personal", label: "🌱 Personal" }
+        ];
+
+        categories.forEach(function (cat) {
+          var pill = document.createElement("button");
+          pill.type = "button";
+          pill.className = "cat-pill" + (currentEditCategory === cat.key ? " active" : "");
+          pill.dataset.cat = cat.key;
+          pill.textContent = cat.label;
+          pill.addEventListener("click", function () {
+            currentEditCategory = cat.key;
+            catWrapper.querySelectorAll(".cat-pill").forEach(function (p) {
+              p.classList.remove("active");
+            });
+            pill.classList.add("active");
+          });
+          catWrapper.appendChild(pill);
+        });
+
+        optionsRow.appendChild(catWrapper);
+
+        // Fixed Daily Recurring toggle
+        var currentEditRecurring = t.recurring === true;
+        var recBtn = document.createElement("button");
+        recBtn.type = "button";
+        recBtn.className = "recurring-pill edit-recurring-btn" + (currentEditRecurring ? " active" : "");
+        recBtn.setAttribute("aria-pressed", currentEditRecurring ? "true" : "false");
+        recBtn.title = "Fixed daily activity (repeats every day until deleted)";
+        recBtn.innerHTML = '<span class="recurring-icon" aria-hidden="true">🔄</span> <span>Fixed Daily</span>';
+        recBtn.addEventListener("click", function () {
+          currentEditRecurring = !currentEditRecurring;
+          recBtn.classList.toggle("active", currentEditRecurring);
+          recBtn.setAttribute("aria-pressed", currentEditRecurring ? "true" : "false");
+        });
+
+        optionsRow.appendChild(recBtn);
+        container.appendChild(optionsRow);
+
+        // 3. Actions row: Save Changes and Cancel buttons
+        var actionsRow = document.createElement("div");
+        actionsRow.className = "edit-actions-row";
+
+        var cancelBtn = document.createElement("button");
+        cancelBtn.type = "button";
+        cancelBtn.className = "edit-cancel";
+        cancelBtn.dataset.action = "cancel";
+        cancelBtn.textContent = "Cancel";
+
+        var saveBtn = document.createElement("button");
+        saveBtn.type = "button";
+        saveBtn.className = "edit-save";
+        saveBtn.dataset.action = "save";
+        saveBtn.textContent = "Save Changes";
+
+        actionsRow.appendChild(cancelBtn);
+        actionsRow.appendChild(saveBtn);
+        container.appendChild(actionsRow);
+
+        row.appendChild(container);
         listEl.appendChild(row);
 
         editInput.focus();
         editInput.setSelectionRange(editInput.value.length, editInput.value.length);
 
+        function doSave() {
+          var res = commitEdit(t.id, editInput.value, timeInput.value, currentEditCategory, currentEditRecurring);
+          if (!res.ok && res.error) {
+            showError(res.error);
+            editInput.focus();
+          } else {
+            hideError();
+          }
+        }
+
+        saveBtn.addEventListener("click", doSave);
+        cancelBtn.addEventListener("click", function () {
+          hideError();
+          renderTasks();
+        });
+
         editInput.addEventListener("keydown", function (ev) {
           if (ev.key === "Enter") {
             ev.preventDefault();
-            var res = commitEdit(t.id, editInput.value);
-            if (!res.ok && res.error) {
-              showError(res.error);
-              editInput.focus();
-            } else {
-              hideError();
-            }
+            doSave();
           } else if (ev.key === "Escape") {
+            hideError();
             renderTasks();
           }
         });
@@ -1170,9 +1313,19 @@
         span.setAttribute("dir", "auto");
         span.textContent = t.text;
         content.appendChild(span);
-        if (t.time || t.category) {
+        if (t.time || t.category || t.recurring) {
           var metaRow = document.createElement("div");
           metaRow.className = "task-meta-row";
+          if (t.recurring) {
+            var recBadge = document.createElement("button");
+            recBadge.type = "button";
+            recBadge.className = "task-recurring-badge";
+            recBadge.dataset.action = "toggle-recurring";
+            recBadge.title = "Fixed daily activity (repeats daily until deleted). Click to make one-off.";
+            recBadge.setAttribute("aria-label", "Fixed daily activity. Click to make one-off.");
+            recBadge.innerHTML = '<span class="recurring-spin" aria-hidden="true">🔄</span> <span>Daily</span>';
+            metaRow.appendChild(recBadge);
+          }
           if (t.category) metaRow.appendChild(makeCategoryChip(t.category));
           if (t.time) metaRow.appendChild(makeTimeChip(t));
           content.appendChild(metaRow);
@@ -1773,7 +1926,16 @@
         if (task) renderEditMode(li, task);
       } else if (action === "save") {
         var field = li.querySelector(".edit-input");
-        var res = commitEdit(id, field ? field.value : "");
+        var timeField = li.querySelector(".edit-time-input");
+        var activeCat = li.querySelector(".edit-category-pills .cat-pill.active");
+        var recBtn = li.querySelector(".edit-recurring-btn");
+        var res = commitEdit(
+          id,
+          field ? field.value : "",
+          timeField ? timeField.value : null,
+          activeCat ? activeCat.dataset.cat : "",
+          recBtn ? recBtn.classList.contains("active") : false
+        );
         if (!res.ok && res.error) {
           showError(res.error);
           if (field) field.focus();
@@ -1781,6 +1943,7 @@
           hideError();
         }
       } else if (action === "cancel") {
+        hideError();
         renderTasks();
       }
     });
@@ -2061,6 +2224,7 @@
       notificationBody: notificationBody,
       getState: function () { return state; },
       addTask: addTask,
+      commitEdit: commitEdit,
       deleteTask: deleteTask,
       toggleTask: toggleTask,
       toggleTaskRecurring: toggleTaskRecurring,

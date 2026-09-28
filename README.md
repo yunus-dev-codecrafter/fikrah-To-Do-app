@@ -19,7 +19,7 @@ Private by design — no account, no backend, no tracking. Tasks stay in your br
 - **Task Filters & Real-time Search**: Quick filter tabs (`All`, `Active`, `Completed`, `🔄 Daily`) and instant search input for today's tasks.
 - **Category Tags**: Tag tasks with optional categories (`📖 Deen`, `💼 Work`, `📚 Study`, `🌱 Personal`, `General`).
 - **Qur'an Revision Planner (604 Pages)**: Daily Mushaf revision tracker with quick presets (Juz 30, Juz 1, Al-Kahf, +10 pages), jump-to-page, mark all, and collapsible view.
-- **Add tasks (button or `Enter`)**, edit inline, mark complete / unmark, delete
+- **Comprehensive Inline Task Editing**: Edit everything about any task directly inline — task name/text, scheduled reminder time (with quick clear `✕`), category tag (`📖 Deen`, `💼 Work`, `📚 Study`, `🌱 Personal`, `General`), and fixed daily recurring status.
 - **Empty-input guard, 500-char limit**, order preserved
 - **Optional per-task reminder time** (native time picker, mobile-friendly)
 - **Reminder notifications** via Notification API + persistent Service Worker notifications (EN/AR body)
@@ -27,7 +27,7 @@ Private by design — no account, no backend, no tracking. Tasks stay in your br
 - **Reminder states**: upcoming / due / completed / overdue (overdue highlighted, completed never notifies)
 - **Notification tap** opens/focuses the app at the relevant task (`?task=<id>` deep-link + highlight)
 - **App icon badge count** where supported (Badging API, progressive enhancement)
-- **Installable PWA**: `manifest.json`, `display: standalone`, icons 192/512 + maskable, offline-cached core files (`sw.js` cache v6)
+- **Installable PWA**: `manifest.json`, `display: standalone`, icons 192/512 + maskable, offline-cached core files (`sw.js` cache v7)
 - **Completion persists** across refresh / close / reopen
 - **Daily reset at midnight**: calendar-bound, resets automatically past midnight without needing manual reload; carries forward fixed daily activities
 - **Accessible & Mobile-First**: Semantic HTML, visible focus rings, keyboard shortcuts (`/` to focus task input, `Esc` to cancel), 44px+ touch targets

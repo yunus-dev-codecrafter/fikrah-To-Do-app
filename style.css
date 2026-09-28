@@ -1796,44 +1796,164 @@ a:focus-visible {
 }
 
 /* Edit Mode */
-.edit-row {
+.task-item.edit-mode {
+  padding: 16px;
+  background: var(--card);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow), var(--shadow);
+  display: block;
+}
+.task-edit-container {
   width: 100%;
   display: flex;
-  gap: 8px;
-  align-items: center;
+  flex-direction: column;
+  gap: 12px;
+}
+.edit-main-row {
+  width: 100%;
 }
 .edit-input {
-  flex: 1;
-  min-width: 0;
-  height: 44px;
-  padding: 0 12px;
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
   font-size: 0.98rem;
   font-family: inherit;
   color: var(--ink);
-  background: var(--card);
-  border: 2px solid var(--accent);
+  background: var(--card-elevated);
+  border: 1.5px solid var(--line);
   border-radius: var(--radius-sm);
   outline: none;
+  transition: all var(--duration) var(--ease);
+}
+.edit-input:focus {
+  border-color: var(--accent);
+  background: var(--card);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.edit-options-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.edit-time-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.edit-time-wrapper .time-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--muted);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+.edit-time-input {
+  height: 34px;
+  width: 120px;
+  padding: 0 24px 0 28px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--card-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  outline: none;
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+}
+.edit-time-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+.edit-time-clear-btn {
+  position: absolute;
+  right: 6px;
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 2px 4px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--duration) ease;
+}
+.edit-time-clear-btn:hover {
+  color: var(--danger);
+}
+
+.edit-category-pills {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.edit-category-pills .cat-pill {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+}
+
+.edit-recurring-btn {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+}
+
+.edit-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-subtle);
 }
 .edit-save {
-  height: 44px;
+  height: 38px;
   padding: 0 16px;
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent) 0%, #0d9488 100%);
   color: #ffffff;
   border: none;
   border-radius: var(--radius-sm);
   font-weight: 700;
+  font-size: 0.88rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--duration) var(--ease);
+}
+.edit-save:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
 }
 .edit-cancel {
-  height: 44px;
+  height: 38px;
   padding: 0 14px;
   background: transparent;
   border: 1px solid var(--line);
   color: var(--muted);
   border-radius: var(--radius-sm);
   font-weight: 600;
+  font-size: 0.88rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--duration) var(--ease);
+}
+.edit-cancel:hover {
+  background: var(--card-hover);
+  color: var(--ink);
 }
 
 /* Footer Actions */
