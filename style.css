@@ -1047,6 +1047,40 @@ a:focus-visible {
   box-shadow: 0 0 0 4px var(--accent-glow);
 }
 
+.duration-picker-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.duration-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--muted);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+.duration-select {
+  height: 50px;
+  width: 106px;
+  padding: 0 8px 0 28px;
+  font-size: 0.88rem;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--card-elevated);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-md);
+  outline: none;
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+}
+.duration-select:focus {
+  border-color: var(--accent);
+  background: var(--card);
+  box-shadow: 0 0 0 4px var(--accent-glow);
+}
+
 .add-submit-btn {
   height: 50px;
 }
@@ -1765,6 +1799,46 @@ a:focus-visible {
   border-color: rgba(56, 189, 248, 0.35);
 }
 
+.task-duration-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  font-variant-numeric: tabular-nums;
+  transition: all var(--duration) var(--ease);
+}
+.task-duration-chip[data-state="in-progress"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-soft-border);
+}
+.task-duration-chip[data-state="overdue"] {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+[data-theme="dark"] .task-duration-chip {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.3);
+}
+[data-theme="dark"] .task-duration-chip[data-state="in-progress"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-soft-border);
+}
+[data-theme="dark"] .task-duration-chip[data-state="overdue"] {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+
 /* Task Action Buttons */
 .task-actions {
   display: flex;
@@ -1888,6 +1962,39 @@ a:focus-visible {
 }
 .edit-time-clear-btn:hover {
   color: var(--danger);
+}
+
+.edit-duration-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.edit-duration-wrapper .duration-icon {
+  position: absolute;
+  left: 8px;
+  color: var(--muted);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+.edit-duration-select {
+  height: 34px;
+  width: 106px;
+  padding: 0 8px 0 26px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--card-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  outline: none;
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+}
+.edit-duration-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
 .edit-category-pills {
@@ -2035,6 +2142,16 @@ a:focus-visible {
     width: 100%;
   }
   #task-time {
+    width: 100%;
+  }
+  .duration-picker-wrapper {
+    width: 100%;
+  }
+  .duration-select {
+    width: 100%;
+  }
+  .add-submit-btn {
+    grid-column: span 2;
     width: 100%;
   }
   .quran-form-row {

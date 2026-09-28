@@ -55,6 +55,7 @@
   var formEl = document.getElementById("task-form");
   var inputEl = document.getElementById("task-input");
   var timeEl = document.getElementById("task-time");
+  var durationEl = document.getElementById("task-duration");
   var errorEl = document.getElementById("form-error");
   var listEl = document.getElementById("task-list");
   var emptyStateEl = document.getElementById("empty-state");
@@ -475,6 +476,28 @@
     return h12 + ":" + m + " " + suffix;
   }
 
+  function parseDuration(v) {
+    if (v === null || v === undefined || v === "") return null;
+    var n = parseInt(v, 10);
+    return (Number.isInteger(n) && n > 0) ? n : null;
+  }
+
+  function formatDuration(mins) {
+    if (!mins || mins <= 0) return "";
+    if (mins < 60) return mins + "m";
+    var h = Math.floor(mins / 60);
+    var m = mins % 60;
+    if (m === 30) return (h + 0.5) + "h";
+    return m > 0 ? h + "h " + m + "m" : h + "h";
+  }
+
+  function minutesToHhmm(m) {
+    m = ((m % 1440) + 1440) % 1440;
+    var h = Math.floor(m / 60);
+    var min = m % 60;
+    return String(h).padStart(2, "0") + ":" + String(min).padStart(2, "0");
+  }
+
   // ---------- Storage & State ----------
   var memoryFallback = null;
   var storageOK = true;
@@ -489,6 +512,7 @@
     if (t.date !== undefined && typeof t.date !== "string") return false;
     if (t.reminderTriggered !== undefined && typeof t.reminderTriggered !== "boolean") return false;
     if (t.recurring !== undefined && typeof t.recurring !== "boolean") return false;
+    if (t.duration !== undefined && t.duration !== null && (!Number.isInteger(t.duration) || t.duration < 0)) return false;
     return true;
   }
 
@@ -555,7 +579,8 @@
           createdAt: t.createdAt,
           order: t.order,
           reminderTriggered: t.reminderTriggered === true,
-          recurring: t.recurring === true
+          recurring: t.recurring === true,
+          duration: (Number.isInteger(t.duration) && t.duration > 0) ? t.duration : null
         };
       });
       clean.sort(function (a, b) { return a.order - b.order; });
@@ -609,7 +634,8 @@
           createdAt: t.createdAt,
           order: idx,
           reminderTriggered: false, // Re-armed for today's reminder
-          recurring: true
+          recurring: true,
+          duration: (Number.isInteger(t.duration) && t.duration > 0) ? t.duration : null
         };
       });
 
@@ -642,7 +668,7 @@
   }
 
   // ---------- Task Operations ----------
-  function addTask(rawText, rawTime, rawCategory, isRecurring) {
+  function addTask(rawText, rawTime, rawCategory, isRecurring, rawDuration) {
     var text = (rawText || "").trim();
     if (!text) return { ok: false, error: STRINGS.emptyTaskError };
     var time = normalizeTime(rawTime === undefined ? (timeEl && timeEl.value ? timeEl.value : null) : rawTime);
@@ -655,12 +681,14 @@
     text = text.slice(0, MAX_TEXT_LENGTH);
     var category = typeof rawCategory === "string" ? rawCategory : selectedCategory;
     var recurring = isRecurring !== undefined ? isRecurring === true : isRecurringActive;
+    var duration = parseDuration(rawDuration === undefined ? (durationEl && durationEl.value ? durationEl.value : null) : rawDuration);
 
     state.tasks.push({
       id: makeId(),
       text: text,
       date: todayKey(),
       time: time,
+      duration: duration,
       category: category,
       completed: false,
       createdAt: Date.now(),
@@ -713,7 +741,7 @@
     if (inputEl) inputEl.focus({ preventScroll: true });
   }
 
-  function commitEdit(id, rawText, rawTime, rawCategory, rawRecurring) {
+  function commitEdit(id, rawText, rawTime, rawCategory, rawRecurring, rawDuration) {
     var t = findTask(id);
     if (!t) return { ok: false };
     var text = (rawText || "").trim();
@@ -731,6 +759,9 @@
     }
     if (rawRecurring !== undefined) {
       t.recurring = !!rawRecurring;
+    }
+    if (rawDuration !== undefined) {
+      t.duration = parseDuration(rawDuration);
     }
 
     // If scheduled time was changed or updated for today, re-evaluate reminder status
@@ -865,20 +896,52 @@
   }
 
   // ---------- Reminder Helpers ----------
+  function taskDeadlineMinutes(task) {
+    var dur = (Number.isInteger(task.duration) && task.duration > 0) ? task.duration : 0;
+    if (task.time) {
+      return minutesOf(task.time) + dur;
+    }
+    if (dur > 0 && task.createdAt && task.date === todayKey()) {
+      var d = new Date(task.createdAt);
+      return d.getHours() * 60 + d.getMinutes() + dur;
+    }
+    return null;
+  }
+
   function taskReminderState(task, now) {
-    if (!task.time) return "none";
+    if (!task.time && (!task.duration || !task.createdAt)) return "none";
     if (task.completed) return "completed";
     if (task.date !== todayKey()) return "upcoming";
-    var dueMins = minutesOf(task.time);
-    var nowM = nowMinutes(now || new Date());
-    if (nowM < dueMins) return "upcoming";
-    return task.reminderTriggered ? "overdue" : "due";
+
+    now = now || new Date();
+    var nm = nowMinutes(now);
+    var dur = (Number.isInteger(task.duration) && task.duration > 0) ? task.duration : 0;
+
+    if (task.time) {
+      var startM = minutesOf(task.time);
+      var endM = startM + dur;
+      if (nm < startM) return "upcoming";
+      if (nm <= endM) return dur > 0 ? "in-progress" : (task.reminderTriggered ? "overdue" : "due");
+      return "overdue";
+    }
+
+    if (dur > 0 && task.createdAt) {
+      var d = new Date(task.createdAt);
+      var startM = d.getHours() * 60 + d.getMinutes();
+      var endM = startM + dur;
+      if (nm <= endM) return "in-progress";
+      return "overdue";
+    }
+
+    return "none";
   }
 
   function isOverdue(task, now) {
-    if (!task.time || task.completed) return false;
+    if (task.completed) return false;
     if (task.date !== todayKey()) return false;
-    return nowMinutes(now || new Date()) > minutesOf(task.time);
+    var deadline = taskDeadlineMinutes(task);
+    if (deadline === null) return false;
+    return nowMinutes(now || new Date()) > deadline;
   }
 
   // ---------- UI Rendering ----------
@@ -907,11 +970,53 @@
     iconSvg.appendChild(poly);
 
     var textSpan = document.createElement("span");
-    textSpan.textContent = formatTime12(task.time) + (st === "overdue" ? " (Overdue)" : "");
+    var stateSuffix = "";
+    if (st === "overdue") stateSuffix = " (Overdue)";
+    else if (st === "in-progress") stateSuffix = " (In progress)";
+    textSpan.textContent = formatTime12(task.time) + stateSuffix;
 
     chip.appendChild(iconSvg);
     chip.appendChild(textSpan);
     chip.setAttribute("aria-label", "Reminder at " + formatTime12(task.time) + ", " + st);
+    return chip;
+  }
+
+  function makeDurationChip(task) {
+    if (!task.duration || task.duration <= 0) return null;
+    var chip = document.createElement("span");
+    chip.className = "task-duration-chip";
+    chip.setAttribute("dir", "ltr");
+    var st = taskReminderState(task, new Date());
+    chip.setAttribute("data-state", st);
+
+    var iconSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    iconSvg.setAttribute("width", "12");
+    iconSvg.setAttribute("height", "12");
+    iconSvg.setAttribute("viewBox", "0 0 24 24");
+    iconSvg.setAttribute("fill", "none");
+    iconSvg.setAttribute("stroke", "currentColor");
+    iconSvg.setAttribute("stroke-width", "2.2");
+    iconSvg.setAttribute("stroke-linecap", "round");
+    iconSvg.setAttribute("stroke-linejoin", "round");
+    iconSvg.setAttribute("aria-hidden", "true");
+    var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("cx", "12"); c.setAttribute("cy", "12"); c.setAttribute("r", "10");
+    var poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    poly.setAttribute("points", "12 6 12 12 14 10");
+    iconSvg.appendChild(c);
+    iconSvg.appendChild(poly);
+
+    var textSpan = document.createElement("span");
+    textSpan.textContent = formatDuration(task.duration);
+
+    chip.appendChild(iconSvg);
+    chip.appendChild(textSpan);
+    var hoverTitle = "Duration: " + formatDuration(task.duration);
+    if (task.time) {
+      hoverTitle += " (until " + formatTime12(minutesToHhmm(minutesOf(task.time) + task.duration)) + ")";
+    }
+    chip.title = hoverTitle;
+    chip.setAttribute("aria-label", hoverTitle);
     return chip;
   }
 
@@ -1064,8 +1169,8 @@
       span.textContent = task.text;
       content.appendChild(span);
 
-      // Meta chips row (category, reminder time, recurring badge)
-      if (task.time || task.category || task.recurring) {
+      // Meta chips row (category, reminder time, duration, recurring badge)
+      if (task.time || task.category || task.recurring || task.duration) {
         var metaRow = document.createElement("div");
         metaRow.className = "task-meta-row";
         if (task.recurring) {
@@ -1080,6 +1185,10 @@
         }
         if (task.category) metaRow.appendChild(makeCategoryChip(task.category));
         if (task.time) metaRow.appendChild(makeTimeChip(task));
+        if (task.duration) {
+          var durChip = makeDurationChip(task);
+          if (durChip) metaRow.appendChild(durChip);
+        }
         content.appendChild(metaRow);
       }
 
@@ -1194,6 +1303,92 @@
 
         optionsRow.appendChild(timeWrapper);
 
+        // Duration picker in edit mode
+        var durWrapper = document.createElement("div");
+        durWrapper.className = "edit-duration-wrapper";
+        durWrapper.title = "Duration before overdue (optional)";
+
+        var durIcon = document.createElement("span");
+        durIcon.className = "duration-icon";
+        durIcon.setAttribute("aria-hidden", "true");
+        durIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 10"></polyline></svg>';
+        durWrapper.appendChild(durIcon);
+
+        var durSelect = document.createElement("select");
+        durSelect.className = "edit-duration-select";
+        durSelect.setAttribute("aria-label", "Duration before overdue");
+
+        var standardDurations = [
+          { val: "", label: "Duration" },
+          { val: "15", label: "15m" },
+          { val: "25", label: "25m" },
+          { val: "30", label: "30m" },
+          { val: "45", label: "45m" },
+          { val: "60", label: "1h" },
+          { val: "90", label: "1.5h" },
+          { val: "120", label: "2h" },
+          { val: "180", label: "3h" }
+        ];
+
+        var currentDurVal = t.duration ? String(t.duration) : "";
+        var matched = false;
+
+        standardDurations.forEach(function (opt) {
+          var optEl = document.createElement("option");
+          optEl.value = opt.val;
+          optEl.textContent = opt.label;
+          if (opt.val === currentDurVal) {
+            optEl.selected = true;
+            matched = true;
+          }
+          durSelect.appendChild(optEl);
+        });
+
+        // If custom duration was already set and not in standard list, insert it
+        if (currentDurVal && !matched) {
+          var customOpt = document.createElement("option");
+          customOpt.value = currentDurVal;
+          customOpt.textContent = formatDuration(t.duration);
+          customOpt.selected = true;
+          durSelect.insertBefore(customOpt, durSelect.lastChild);
+        }
+
+        var customChoice = document.createElement("option");
+        customChoice.value = "custom";
+        customChoice.textContent = "Custom...";
+        durSelect.appendChild(customChoice);
+
+        durSelect.addEventListener("change", function () {
+          if (durSelect.value === "custom") {
+            var customVal = window.prompt("Enter duration in minutes (e.g. 50, 75, 120):", currentDurVal || "30");
+            if (customVal !== null) {
+              var parsed = parseInt(customVal.trim(), 10);
+              if (!isNaN(parsed) && parsed > 0 && parsed <= 1440) {
+                var found = false;
+                for (var i = 0; i < durSelect.options.length; i++) {
+                  if (durSelect.options[i].value === String(parsed)) {
+                    durSelect.selectedIndex = i;
+                    found = true;
+                    break;
+                  }
+                }
+                if (!found) {
+                  var newOpt = document.createElement("option");
+                  newOpt.value = String(parsed);
+                  newOpt.textContent = formatDuration(parsed);
+                  durSelect.insertBefore(newOpt, durSelect.lastChild);
+                  newOpt.selected = true;
+                }
+                return;
+              }
+            }
+            durSelect.value = currentDurVal;
+          }
+        });
+
+        durWrapper.appendChild(durSelect);
+        optionsRow.appendChild(durWrapper);
+
         // Category selector pills
         var catWrapper = document.createElement("div");
         catWrapper.className = "edit-category-pills";
@@ -1271,7 +1466,7 @@
         editInput.setSelectionRange(editInput.value.length, editInput.value.length);
 
         function doSave() {
-          var res = commitEdit(t.id, editInput.value, timeInput.value, currentEditCategory, currentEditRecurring);
+          var res = commitEdit(t.id, editInput.value, timeInput.value, currentEditCategory, currentEditRecurring, durSelect.value);
           if (!res.ok && res.error) {
             showError(res.error);
             editInput.focus();
@@ -1313,7 +1508,7 @@
         span.setAttribute("dir", "auto");
         span.textContent = t.text;
         content.appendChild(span);
-        if (t.time || t.category || t.recurring) {
+        if (t.time || t.category || t.recurring || t.duration) {
           var metaRow = document.createElement("div");
           metaRow.className = "task-meta-row";
           if (t.recurring) {
@@ -1328,6 +1523,10 @@
           }
           if (t.category) metaRow.appendChild(makeCategoryChip(t.category));
           if (t.time) metaRow.appendChild(makeTimeChip(t));
+          if (t.duration) {
+            var durChip = makeDurationChip(t);
+            if (durChip) metaRow.appendChild(durChip);
+          }
           content.appendChild(metaRow);
         }
 
@@ -1826,7 +2025,8 @@
     formEl.addEventListener("submit", function (ev) {
       ev.preventDefault();
       ensureTodayFresh();
-      var res = addTask(inputEl ? inputEl.value : "", timeEl ? timeEl.value : null, selectedCategory, isRecurringActive);
+      var durVal = durationEl && durationEl.value ? durationEl.value : null;
+      var res = addTask(inputEl ? inputEl.value : "", timeEl ? timeEl.value : null, selectedCategory, isRecurringActive, durVal);
       if (!res.ok) {
         showError(res.error);
         if (inputEl) inputEl.focus();
@@ -1835,9 +2035,40 @@
       hideError();
       if (inputEl) inputEl.value = "";
       if (timeEl) timeEl.value = "";
+      if (durationEl) durationEl.value = "";
       if (composerCharCountEl) composerCharCountEl.textContent = "";
       toggleRecurringOption(false);
       if (inputEl) inputEl.focus();
+    });
+  }
+
+  if (durationEl) {
+    durationEl.addEventListener("change", function () {
+      if (durationEl.value === "custom") {
+        var customVal = window.prompt("Enter duration in minutes (e.g. 50, 75, 120):", "30");
+        if (customVal !== null) {
+          var parsed = parseInt(customVal.trim(), 10);
+          if (!isNaN(parsed) && parsed > 0 && parsed <= 1440) {
+            var found = false;
+            for (var i = 0; i < durationEl.options.length; i++) {
+              if (durationEl.options[i].value === String(parsed)) {
+                durationEl.selectedIndex = i;
+                found = true;
+                break;
+              }
+            }
+            if (!found) {
+              var newOpt = document.createElement("option");
+              newOpt.value = String(parsed);
+              newOpt.textContent = formatDuration(parsed);
+              durationEl.insertBefore(newOpt, durationEl.lastChild);
+              newOpt.selected = true;
+            }
+            return;
+          }
+        }
+        durationEl.value = "";
+      }
     });
   }
 
@@ -1927,6 +2158,7 @@
       } else if (action === "save") {
         var field = li.querySelector(".edit-input");
         var timeField = li.querySelector(".edit-time-input");
+        var durField = li.querySelector(".edit-duration-select");
         var activeCat = li.querySelector(".edit-category-pills .cat-pill.active");
         var recBtn = li.querySelector(".edit-recurring-btn");
         var res = commitEdit(
@@ -1934,7 +2166,8 @@
           field ? field.value : "",
           timeField ? timeField.value : null,
           activeCat ? activeCat.dataset.cat : "",
-          recBtn ? recBtn.classList.contains("active") : false
+          recBtn ? recBtn.classList.contains("active") : false,
+          durField ? durField.value : null
         );
         if (!res.ok && res.error) {
           showError(res.error);
@@ -2245,7 +2478,11 @@
       wakeLockSupported: wakeLockSupported,
       requestWakeLock: requestWakeLock,
       releaseWakeLock: releaseWakeLock,
-      toggleWakeLock: toggleWakeLock
+      toggleWakeLock: toggleWakeLock,
+      taskDeadlineMinutes: taskDeadlineMinutes,
+      formatDuration: formatDuration,
+      parseDuration: parseDuration,
+      isOverdue: isOverdue
     };
   }
 })();

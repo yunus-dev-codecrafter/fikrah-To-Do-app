@@ -18,16 +18,17 @@ Private by design — no account, no backend, no tracking. Tasks stay in your br
 - **Dynamic Productivity Stats**: Real-time progress bar, percentage, greeting messages, and breakdown pills (Total, Active, Done).
 - **Task Filters & Real-time Search**: Quick filter tabs (`All`, `Active`, `Completed`, `🔄 Daily`) and instant search input for today's tasks.
 - **Category Tags**: Tag tasks with optional categories (`📖 Deen`, `💼 Work`, `📚 Study`, `🌱 Personal`, `General`).
+- **Task Duration & Dynamic Overdue Windows**: Assign tasks an estimated duration (15m, 25m, 30m, 45m, 1h, 1.5h, 2h, 3h, or custom minutes). Tasks with durations remain actively "in-progress" during their duration window and do not turn overdue until `scheduled_time + duration` has elapsed.
+- **Comprehensive Inline Task Editing**: Edit everything about any task directly inline — task name/text, scheduled reminder time (with quick clear `✕`), estimated duration, category tag (`📖 Deen`, `💼 Work`, `📚 Study`, `🌱 Personal`, `General`), and fixed daily recurring status.
 - **Qur'an Revision Planner (604 Pages)**: Daily Mushaf revision tracker with quick presets (Juz 30, Juz 1, Al-Kahf, +10 pages), jump-to-page, mark all, and collapsible view.
-- **Comprehensive Inline Task Editing**: Edit everything about any task directly inline — task name/text, scheduled reminder time (with quick clear `✕`), category tag (`📖 Deen`, `💼 Work`, `📚 Study`, `🌱 Personal`, `General`), and fixed daily recurring status.
 - **Empty-input guard, 500-char limit**, order preserved
 - **Optional per-task reminder time** (native time picker, mobile-friendly)
 - **Reminder notifications** via Notification API + persistent Service Worker notifications (EN/AR body)
 - **Friendly permission flow**: reminders enabled only via "Enable Reminders", never on load; denied/unsupported states degrade gracefully
-- **Reminder states**: upcoming / due / completed / overdue (overdue highlighted, completed never notifies)
+- **Reminder states**: upcoming / in-progress / due / completed / overdue (overdue highlighted, completed never notifies)
 - **Notification tap** opens/focuses the app at the relevant task (`?task=<id>` deep-link + highlight)
 - **App icon badge count** where supported (Badging API, progressive enhancement)
-- **Installable PWA**: `manifest.json`, `display: standalone`, icons 192/512 + maskable, offline-cached core files (`sw.js` cache v7)
+- **Installable PWA**: `manifest.json`, `display: standalone`, icons 192/512 + maskable, offline-cached core files (`sw.js` cache v8)
 - **Completion persists** across refresh / close / reopen
 - **Daily reset at midnight**: calendar-bound, resets automatically past midnight without needing manual reload; carries forward fixed daily activities
 - **Accessible & Mobile-First**: Semantic HTML, visible focus rings, keyboard shortcuts (`/` to focus task input, `Esc` to cancel), 44px+ touch targets
