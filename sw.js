@@ -5,7 +5,7 @@
 */
 "use strict";
 
-var CACHE = "fikra-todo-v5";
+var CACHE = "fikra-todo-v6";
 var CORE = [
   "./",
   "./index.html",
@@ -98,4 +98,19 @@ self.addEventListener("notificationclick", function (event) {
       return self.clients.openWindow(target);
     })
   );
+});
+
+// Periodic background sync: checks daily planning reminder triggers (12am & 7am)
+self.addEventListener("periodicsync", function (event) {
+  if (event.tag === "fikra-daily-planning") {
+    event.waitUntil(
+      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
+        if (list && list.length > 0) {
+          list.forEach(function (c) {
+            c.postMessage({ type: "CHECK_DAILY_PLANNING" });
+          });
+        }
+      })
+    );
+  }
 });

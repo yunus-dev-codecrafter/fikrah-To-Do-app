@@ -109,9 +109,12 @@
   var clearCompletedBtn = document.getElementById("clear-completed-btn");
   var composerCharCountEl = document.getElementById("composer-char-count");
   var categoryPillsContainer = document.querySelector(".category-pills-row");
+  var recurringToggleBtn = document.getElementById("recurring-toggle-btn");
+  var isRecurringActive = false;
+  var DAILY_PLANNING_KEY = "fikra-daily-planning-prompts";
 
   // Filter & Search active state
-  var currentFilter = "all"; // 'all' | 'active' | 'completed'
+  var currentFilter = "all"; // 'all' | 'active' | 'completed' | 'daily'
   var searchQuery = "";
   var selectedCategory = "";
 
@@ -485,6 +488,7 @@
     if (t.time !== undefined && t.time !== null && !isValidTime(t.time)) return false;
     if (t.date !== undefined && typeof t.date !== "string") return false;
     if (t.reminderTriggered !== undefined && typeof t.reminderTriggered !== "boolean") return false;
+    if (t.recurring !== undefined && typeof t.recurring !== "boolean") return false;
     return true;
   }
 
@@ -550,7 +554,8 @@
           completed: t.completed,
           createdAt: t.createdAt,
           order: t.order,
-          reminderTriggered: t.reminderTriggered === true
+          reminderTriggered: t.reminderTriggered === true,
+          recurring: t.recurring === true
         };
       });
       clean.sort(function (a, b) { return a.order - b.order; });
@@ -590,7 +595,29 @@
   function ensureTodayFresh() {
     var key = todayKey();
     if (state.date !== key) {
-      state = blankState(key);
+      // Carry forward fixed daily recurring tasks into the new day
+      var recurringTasks = state.tasks.filter(function (t) {
+        return t.recurring === true;
+      }).map(function (t, idx) {
+        return {
+          id: t.id,
+          text: t.text,
+          date: key,
+          time: t.time,
+          category: t.category,
+          completed: false, // Reset completed status for fresh new day
+          createdAt: t.createdAt,
+          order: idx,
+          reminderTriggered: false, // Re-armed for today's reminder
+          recurring: true
+        };
+      });
+
+      state = {
+        date: key,
+        tasks: recurringTasks,
+        quran: null
+      };
       saveState(state);
       renderAll();
       return true;
@@ -615,7 +642,7 @@
   }
 
   // ---------- Task Operations ----------
-  function addTask(rawText, rawTime, rawCategory) {
+  function addTask(rawText, rawTime, rawCategory, isRecurring) {
     var text = (rawText || "").trim();
     if (!text) return { ok: false, error: STRINGS.emptyTaskError };
     var time = normalizeTime(rawTime === undefined ? (timeEl && timeEl.value ? timeEl.value : null) : rawTime);
@@ -627,6 +654,7 @@
     }
     text = text.slice(0, MAX_TEXT_LENGTH);
     var category = typeof rawCategory === "string" ? rawCategory : selectedCategory;
+    var recurring = isRecurring !== undefined ? isRecurring === true : isRecurringActive;
 
     state.tasks.push({
       id: makeId(),
@@ -637,7 +665,8 @@
       completed: false,
       createdAt: Date.now(),
       order: nextOrder(),
-      reminderTriggered: false
+      reminderTriggered: false,
+      recurring: recurring
     });
     saveState(state);
     renderTasks();
@@ -668,6 +697,14 @@
     checkDueReminders(new Date());
   }
 
+  function toggleTaskRecurring(id) {
+    var t = findTask(id);
+    if (!t) return;
+    t.recurring = !t.recurring;
+    saveState(state);
+    renderTasks();
+  }
+
   function deleteTask(id) {
     state.tasks = state.tasks.filter(function (t) { return t.id !== id; });
     saveState(state);
@@ -691,7 +728,8 @@
     var hasCompleted = state.tasks.some(function (t) { return t.completed; });
     if (!hasCompleted) return;
     if (!window.confirm(STRINGS.clearCompletedConfirm)) return;
-    state.tasks = state.tasks.filter(function (t) { return !t.completed; });
+    // Clear completed one-off tasks while preserving fixed daily recurring tasks
+    state.tasks = state.tasks.filter(function (t) { return !t.completed || t.recurring; });
     saveState(state);
     renderTasks();
     renderSummary();
@@ -937,6 +975,7 @@
       // 1. Filter Tab
       if (currentFilter === "active" && t.completed) return false;
       if (currentFilter === "completed" && !t.completed) return false;
+      if (currentFilter === "daily" && !t.recurring) return false;
       // 2. Search Query
       if (searchQuery) {
         var q = searchQuery.toLowerCase();
@@ -965,6 +1004,9 @@
         } else if (currentFilter === "active") {
           emptyTitle.textContent = "All tasks completed!";
           emptySub.textContent = "You've finished all your active tasks for today. Great job!";
+        } else if (currentFilter === "daily") {
+          emptyTitle.textContent = "No fixed daily activities";
+          emptySub.textContent = "Enable 'Fixed Daily' when adding a task to keep it every day until deleted.";
         }
       }
     }
@@ -996,10 +1038,20 @@
       span.textContent = task.text;
       content.appendChild(span);
 
-      // Meta chips row (category, reminder time)
-      if (task.time || task.category) {
+      // Meta chips row (category, reminder time, recurring badge)
+      if (task.time || task.category || task.recurring) {
         var metaRow = document.createElement("div");
         metaRow.className = "task-meta-row";
+        if (task.recurring) {
+          var recBadge = document.createElement("button");
+          recBadge.type = "button";
+          recBadge.className = "task-recurring-badge";
+          recBadge.dataset.action = "toggle-recurring";
+          recBadge.title = "Fixed daily activity (repeats daily until deleted). Click to make one-off.";
+          recBadge.setAttribute("aria-label", "Fixed daily activity. Click to make one-off.");
+          recBadge.innerHTML = '<span class="recurring-spin" aria-hidden="true">🔄</span> <span>Daily</span>';
+          metaRow.appendChild(recBadge);
+        }
         if (task.category) metaRow.appendChild(makeCategoryChip(task.category));
         if (task.time) metaRow.appendChild(makeTimeChip(task));
         content.appendChild(metaRow);
@@ -1008,6 +1060,17 @@
       // Actions (Edit, Delete with crisp SVGs)
       var actions = document.createElement("div");
       actions.className = "task-actions";
+
+      if (!task.recurring) {
+        var recBtn = document.createElement("button");
+        recBtn.type = "button";
+        recBtn.className = "icon-btn";
+        recBtn.dataset.action = "toggle-recurring";
+        recBtn.setAttribute("aria-label", "Set as fixed daily activity");
+        recBtn.title = "Repeat daily";
+        recBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>';
+        actions.appendChild(recBtn);
+      }
 
       var edit = document.createElement("button");
       edit.type = "button";
@@ -1342,9 +1405,108 @@
     } catch (e) {}
   }
 
+  // ---------- Automatic 12:00 AM & 7:00 AM Daily Planning Reminders ----------
+  function isRtlLocale() {
+    try {
+      return document.documentElement.lang === "ar" || document.documentElement.getAttribute("dir") === "rtl";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function getDailyPlanningState() {
+    var today = todayKey();
+    var defaultState = { date: today, sent12am: false, sent7am: false };
+    try {
+      var raw = window.localStorage.getItem(DAILY_PLANNING_KEY);
+      if (!raw) return defaultState;
+      var parsed = JSON.parse(raw);
+      if (!parsed || parsed.date !== today) return defaultState;
+      return {
+        date: today,
+        sent12am: parsed.sent12am === true,
+        sent7am: parsed.sent7am === true
+      };
+    } catch (e) {
+      return defaultState;
+    }
+  }
+
+  function saveDailyPlanningState(st) {
+    try {
+      window.localStorage.setItem(DAILY_PLANNING_KEY, JSON.stringify(st));
+    } catch (e) {}
+  }
+
+  function firePlanningNotification(title, body) {
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+        navigator.serviceWorker.ready.then(function (reg) {
+          if (reg && reg.showNotification) {
+            reg.showNotification(title, {
+              body: body,
+              tag: "fikra-daily-planning-" + Date.now(),
+              icon: "icons/icon-192.png",
+              badge: "icons/favicon-32.png"
+            }).catch(function () {
+              try { new Notification(title, { body: body, icon: "icons/icon-192.png" }); } catch (e) {}
+            });
+          } else {
+            try { new Notification(title, { body: body, icon: "icons/icon-192.png" }); } catch (e) {}
+          }
+        }).catch(function () {
+          try { new Notification(title, { body: body, icon: "icons/icon-192.png" }); } catch (e) {}
+        });
+      } else {
+        try { new Notification(title, { body: body, icon: "icons/icon-192.png" }); } catch (e) {}
+      }
+    } catch (e) {}
+  }
+
+  function checkDailyPlanningPrompts(now) {
+    now = now || new Date();
+    if (permissionState() !== "granted") return;
+
+    var h = now.getHours();
+    var planState = getDailyPlanningState();
+    var changed = false;
+
+    // 12:00 AM Midnight Reset prompt (00:00 - 00:59)
+    if (h === 0 && !planState.sent12am) {
+      planState.sent12am = true;
+      changed = true;
+      firePlanningNotification(
+        "🌙 " + STRINGS.appName + " · " + (isRtlLocale() ? "بداية يوم جديد" : "Midnight Reset"),
+        isRtlLocale()
+          ? "تم تجديد مهام اليوم! حدد مهامك وأهدافك لليوم الجديد."
+          : "Midnight reset complete! Set your daily tasks and intentions in Fikra."
+      );
+    }
+
+    // 7:00 AM Morning Focus prompt (07:00 - 09:59)
+    if (h >= 7 && h < 10 && !planState.sent7am) {
+      planState.sent7am = true;
+      changed = true;
+      firePlanningNotification(
+        "☀️ " + STRINGS.appName + " · " + (isRtlLocale() ? "صباح الهمّة" : "Morning Focus"),
+        isRtlLocale()
+          ? "صباح الخير! حدد أهم مهامك لليوم في فكرة لبدء يومك بهمة ونشاط."
+          : "Good morning! Set your focus tasks for today in Fikra to build momentum."
+      );
+    }
+
+    if (changed) {
+      saveDailyPlanningState(planState);
+    }
+  }
+
   function checkDueReminders(now) {
     now = now || new Date();
     if (ensureTodayFresh()) return;
+
+    // Check automatic daily planning reminders (12:00 AM & 7:00 AM)
+    checkDailyPlanningPrompts(now);
+
     if (permissionState() !== "granted") {
       renderTasks();
       return;
@@ -1489,11 +1651,29 @@
   } catch (e) {}
 
   // ---------- Events & Keybindings ----------
+  function toggleRecurringOption(explicitState) {
+    if (explicitState !== undefined) {
+      isRecurringActive = !!explicitState;
+    } else {
+      isRecurringActive = !isRecurringActive;
+    }
+    if (recurringToggleBtn) {
+      recurringToggleBtn.classList.toggle("active", isRecurringActive);
+      recurringToggleBtn.setAttribute("aria-pressed", isRecurringActive ? "true" : "false");
+    }
+  }
+
+  if (recurringToggleBtn) {
+    recurringToggleBtn.addEventListener("click", function () {
+      toggleRecurringOption();
+    });
+  }
+
   if (formEl) {
     formEl.addEventListener("submit", function (ev) {
       ev.preventDefault();
       ensureTodayFresh();
-      var res = addTask(inputEl ? inputEl.value : "", timeEl ? timeEl.value : null, selectedCategory);
+      var res = addTask(inputEl ? inputEl.value : "", timeEl ? timeEl.value : null, selectedCategory, isRecurringActive);
       if (!res.ok) {
         showError(res.error);
         if (inputEl) inputEl.focus();
@@ -1503,6 +1683,7 @@
       if (inputEl) inputEl.value = "";
       if (timeEl) timeEl.value = "";
       if (composerCharCountEl) composerCharCountEl.textContent = "";
+      toggleRecurringOption(false);
       if (inputEl) inputEl.focus();
     });
   }
@@ -1583,6 +1764,8 @@
 
       if (action === "toggle") {
         toggleTask(id);
+      } else if (action === "toggle-recurring") {
+        toggleTaskRecurring(id);
       } else if (action === "delete") {
         deleteTask(id);
       } else if (action === "edit") {
@@ -1853,10 +2036,18 @@
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("message", function (ev) {
       if (ev.data && ev.data.type === "FOCUS_TASK") focusTask(ev.data.taskId);
+      if (ev.data && ev.data.type === "CHECK_DAILY_PLANNING") checkDailyPlanningPrompts(new Date());
     });
+    if ("periodicSync" in ServiceWorkerRegistration.prototype) {
+      navigator.serviceWorker.ready.then(function (reg) {
+        return reg.periodicSync.register("fikra-daily-planning", {
+          minInterval: 60 * 60 * 1000
+        });
+      }).catch(function () {});
+    }
   }
 
-  // Test Seam (Exact backward compatibility preserved)
+  // Test Seam (Exact backward compatibility preserved + new features)
   if (typeof window !== "undefined") {
     window.__fikraTest = {
       getLocalDateKey: getLocalDateKey,
@@ -1869,6 +2060,14 @@
       dueTasks: dueTasks,
       notificationBody: notificationBody,
       getState: function () { return state; },
+      addTask: addTask,
+      deleteTask: deleteTask,
+      toggleTask: toggleTask,
+      toggleTaskRecurring: toggleTaskRecurring,
+      ensureTodayFresh: ensureTodayFresh,
+      getDailyPlanningState: getDailyPlanningState,
+      saveDailyPlanningState: saveDailyPlanningState,
+      checkDailyPlanningPrompts: checkDailyPlanningPrompts,
       QURAN_MIN: QURAN_MIN,
       QURAN_MAX: QURAN_MAX,
       isValidQuranPlan: isValidQuranPlan,

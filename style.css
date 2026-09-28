@@ -785,6 +785,32 @@ a:focus-visible {
   pointer-events: none;
 }
 
+/* Daily Planning Banner */
+.daily-planning-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: var(--card-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 0.84rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.daily-planning-banner strong {
+  color: var(--ink);
+  display: block;
+  font-size: 0.86rem;
+  margin-bottom: 2px;
+}
+.daily-planning-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
 /* ==========================================================================
    Summary & Progress Dashboard
    ========================================================================== */
@@ -1059,6 +1085,58 @@ a:focus-visible {
   border-color: var(--accent-soft-border);
   color: var(--accent);
   font-weight: 700;
+}
+
+/* Composer Options Row & Fixed Daily Toggle */
+.composer-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+.composer-options-row .category-pills-row {
+  margin-top: 0;
+  flex: 1;
+}
+
+.recurring-pill {
+  appearance: none;
+  background: var(--card-elevated);
+  border: 1.5px dashed var(--line);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: all var(--duration) var(--ease);
+}
+.recurring-pill:hover {
+  background: var(--card-hover);
+  color: var(--ink);
+  border-color: var(--accent);
+}
+.recurring-pill.active {
+  background: var(--accent-soft);
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+.recurring-pill.active .recurring-icon {
+  transform: rotate(180deg);
+}
+.recurring-icon {
+  display: inline-block;
+  transition: transform 0.3s ease;
+  font-size: 0.85rem;
 }
 
 .form-error {
@@ -1659,6 +1737,32 @@ a:focus-visible {
   border-radius: var(--radius-full);
   background: var(--line-subtle);
   color: var(--ink-secondary);
+}
+
+.task-recurring-badge {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(14, 165, 233, 0.12);
+  color: #0284c7;
+  border: 1px solid rgba(14, 165, 233, 0.28);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all var(--duration) var(--ease);
+}
+.task-recurring-badge:hover {
+  background: rgba(14, 165, 233, 0.22);
+  transform: scale(1.03);
+}
+[data-theme="dark"] .task-recurring-badge {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.35);
 }
 
 /* Task Action Buttons */

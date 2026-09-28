@@ -6,6 +6,8 @@ Private by design — no account, no backend, no tracking. Tasks stay in your br
 
 ## Features
 
+- **Fixed Daily Activities (Recurring Habits)**: Create daily routine tasks with "Fixed Daily 🔄" that persist across midnight resets until explicitly deleted, automatically resetting completion status and reminder triggers for each fresh day.
+- **Automatic Daily Planning Reminders (12:00 AM & 7:00 AM)**: Automatic prompts at midnight (00:00) for daily intentions reset and morning (07:00) for morning focus, powered by native notifications and Service Worker periodic background sync.
 - **Modern Glassmorphic UI/UX**: Soft radiant ambient lighting, clean card elevation, crisp typography (`Plus Jakarta Sans` & `Amiri`).
 - **Dark & Light Mode**: Instant theme switching with radiant warm sun (`☀️`) in dark mode and moon (`🌙`) in light mode, with single-active display.
 - **Audio & Haptic Feedback**: Synthesized Web Audio cues on completion, unchecking, and celebration fanfare, with dedicated mute toggle (`🔊` / `🔇`).
@@ -14,7 +16,7 @@ Private by design — no account, no backend, no tracking. Tasks stay in your br
 - **Auto-Dismissing PWA Install Banner**: Disappears completely when the app is already installed or standalone, with no forced popups.
 - **Confetti Celebration**: Canvas particle fireworks upon completing all daily tasks.
 - **Dynamic Productivity Stats**: Real-time progress bar, percentage, greeting messages, and breakdown pills (Total, Active, Done).
-- **Task Filters & Real-time Search**: Quick filter tabs (`All`, `Active`, `Completed`) and instant search input for today's tasks.
+- **Task Filters & Real-time Search**: Quick filter tabs (`All`, `Active`, `Completed`, `🔄 Daily`) and instant search input for today's tasks.
 - **Category Tags**: Tag tasks with optional categories (`📖 Deen`, `💼 Work`, `📚 Study`, `🌱 Personal`, `General`).
 - **Qur'an Revision Planner (604 Pages)**: Daily Mushaf revision tracker with quick presets (Juz 30, Juz 1, Al-Kahf, +10 pages), jump-to-page, mark all, and collapsible view.
 - **Add tasks (button or `Enter`)**, edit inline, mark complete / unmark, delete
@@ -25,9 +27,9 @@ Private by design — no account, no backend, no tracking. Tasks stay in your br
 - **Reminder states**: upcoming / due / completed / overdue (overdue highlighted, completed never notifies)
 - **Notification tap** opens/focuses the app at the relevant task (`?task=<id>` deep-link + highlight)
 - **App icon badge count** where supported (Badging API, progressive enhancement)
-- **Installable PWA**: `manifest.json`, `display: standalone`, icons 192/512 + maskable, offline-cached core files (`sw.js` cache v4)
+- **Installable PWA**: `manifest.json`, `display: standalone`, icons 192/512 + maskable, offline-cached core files (`sw.js` cache v6)
 - **Completion persists** across refresh / close / reopen
-- **Daily reset at midnight**: calendar-bound, resets automatically past midnight without needing manual reload
+- **Daily reset at midnight**: calendar-bound, resets automatically past midnight without needing manual reload; carries forward fixed daily activities
 - **Accessible & Mobile-First**: Semantic HTML, visible focus rings, keyboard shortcuts (`/` to focus task input, `Esc` to cancel), 44px+ touch targets
 - **Secure rendering**: User text inserted safely via `textContent` only, never `innerHTML`
 

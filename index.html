@@ -182,6 +182,13 @@
             <div class="reminder-text">
               <p id="reminder-status" role="status">Enable notifications to receive gentle prompts at each task's scheduled time.</p>
               <p class="reliability-note">Background timing is most reliable while the app or installed PWA is open or recently used.</p>
+              <div class="daily-planning-banner">
+                <span class="daily-planning-icon" aria-hidden="true">⏰</span>
+                <div class="daily-planning-info">
+                  <strong>Automatic Daily Planning Reminders:</strong>
+                  <span>🌙 12:00 AM (Midnight Reset) &amp; ☀️ 7:00 AM (Morning Focus) notify you to set daily goals.</span>
+                </div>
+              </div>
             </div>
             <button id="reminder-btn" type="button" class="btn-secondary btn-sm">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -295,13 +302,19 @@
             </div>
           </div>
 
-          <!-- Quick category selector pills -->
-          <div class="category-pills-row" role="radiogroup" aria-label="Task category (optional)">
-            <button type="button" class="cat-pill active" data-cat="">General</button>
-            <button type="button" class="cat-pill" data-cat="deen">📖 Deen</button>
-            <button type="button" class="cat-pill" data-cat="work">💼 Work</button>
-            <button type="button" class="cat-pill" data-cat="study">📚 Study</button>
-            <button type="button" class="cat-pill" data-cat="personal">🌱 Personal</button>
+          <!-- Quick category selector pills & Fixed Daily toggle -->
+          <div class="composer-options-row">
+            <div class="category-pills-row" role="radiogroup" aria-label="Task category (optional)">
+              <button type="button" class="cat-pill active" data-cat="">General</button>
+              <button type="button" class="cat-pill" data-cat="deen">📖 Deen</button>
+              <button type="button" class="cat-pill" data-cat="work">💼 Work</button>
+              <button type="button" class="cat-pill" data-cat="study">📚 Study</button>
+              <button type="button" class="cat-pill" data-cat="personal">🌱 Personal</button>
+            </div>
+            <button id="recurring-toggle-btn" type="button" class="recurring-pill" aria-pressed="false" title="Fixed daily activity (repeats every day until deleted)">
+              <span class="recurring-icon" aria-hidden="true">🔄</span>
+              <span>Fixed Daily</span>
+            </button>
           </div>
         </form>
 
@@ -439,11 +452,12 @@
             <span id="task-count-badge" class="task-count-badge">0</span>
           </div>
 
-          <!-- Filter Tabs: All / Active / Completed -->
+          <!-- Filter Tabs: All / Active / Completed / Daily -->
           <div class="filter-tabs" role="tablist" aria-label="Filter tasks">
             <button id="filter-all" type="button" class="filter-tab active" role="tab" aria-selected="true" data-filter="all">All</button>
             <button id="filter-active" type="button" class="filter-tab" role="tab" aria-selected="false" data-filter="active">Active</button>
             <button id="filter-completed" type="button" class="filter-tab" role="tab" aria-selected="false" data-filter="completed">Completed</button>
+            <button id="filter-daily" type="button" class="filter-tab" role="tab" aria-selected="false" data-filter="daily">🔄 Daily</button>
           </div>
         </div>
 
