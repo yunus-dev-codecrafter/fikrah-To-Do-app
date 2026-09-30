@@ -2063,6 +2063,95 @@ a:focus-visible {
   color: var(--ink);
 }
 
+/* ==========================================================================
+   Task Drag-to-Reorder
+   ========================================================================== */
+
+/* Drag handle — appears on the left of each task item */
+.drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 36px;
+  margin: -4px 0 0 -8px;
+  flex: none;
+  cursor: grab;
+  color: var(--muted-light);
+  border-radius: 6px;
+  transition: color var(--duration) ease, background var(--duration) ease;
+  touch-action: none; /* required for pointer-event touch drag */
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.task-item:hover .drag-handle,
+.task-item:focus-within .drag-handle {
+  color: var(--muted);
+}
+.drag-handle:hover {
+  background: var(--card-hover);
+  color: var(--ink);
+}
+
+/* While dragging: dim the original element */
+.task-item.dragging {
+  opacity: 0.35;
+  border-style: dashed;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* Drop target indicator: glowing accent line at the top */
+.task-item.drag-over-top {
+  border-top: 2.5px solid var(--accent) !important;
+  box-shadow: 0 -3px 0 0 var(--accent-glow) !important;
+}
+.task-item.drag-over-bottom {
+  border-bottom: 2.5px solid var(--accent) !important;
+  box-shadow: 0 3px 0 0 var(--accent-glow) !important;
+}
+
+/* ==========================================================================
+   In-Progress Task State
+   ========================================================================== */
+
+/* Task items currently "in progress" (time has started, duration not elapsed) */
+.task-item.in-progress {
+  border-color: var(--accent-soft-border);
+  background: linear-gradient(135deg, var(--card) 0%, var(--accent-soft) 100%);
+  box-shadow: var(--shadow-sm), inset 3px 0 0 0 var(--accent);
+}
+.task-item.in-progress:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow), inset 3px 0 0 0 var(--accent);
+}
+/* A subtle animated left-border pulse for in-progress tasks */
+.task-item.in-progress::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background: var(--accent);
+  animation: inProgressPulse 2s ease-in-out infinite;
+}
+@keyframes inProgressPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.task-item.in-progress .task-text {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Dark-mode tweaks */
+[data-theme="dark"] .task-item.in-progress {
+  background: linear-gradient(135deg, var(--card) 0%, rgba(20, 184, 166, 0.08) 100%);
+}
+
 /* Footer Actions */
 .list-footer-actions {
   display: flex;

@@ -1144,8 +1144,21 @@
 
     filteredTasks.forEach(function (task) {
       var li = document.createElement("li");
-      li.className = "task-item" + (task.completed ? " completed" : "") + (isOverdue(task, new Date()) ? " overdue" : "");
+      var taskState = taskReminderState(task, new Date());
+      var inProgress = !task.completed && taskState === "in-progress";
+      li.className = "task-item"
+        + (task.completed ? " completed" : "")
+        + (isOverdue(task, new Date()) ? " overdue" : "")
+        + (inProgress ? " in-progress" : "");
       li.dataset.id = task.id;
+
+      // Drag handle
+      var handle = document.createElement("button");
+      handle.type = "button";
+      handle.className = "drag-handle";
+      handle.setAttribute("aria-label", "Drag to reorder task");
+      handle.setAttribute("tabindex", "-1");
+      handle.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.5" fill="currentColor" stroke="none"/></svg>';
 
       // Completion toggle button
       var check = document.createElement("button");
@@ -1153,6 +1166,7 @@
       check.className = "check-btn";
       check.setAttribute("aria-label", task.completed ? "Mark as not completed" : "Mark as completed");
       check.setAttribute("aria-pressed", task.completed ? "true" : "false");
+
       check.dataset.action = "toggle";
       var box = document.createElement("span");
       box.className = "check-box";
@@ -1226,12 +1240,204 @@
       actions.appendChild(edit);
       actions.appendChild(del);
 
+      li.appendChild(handle);
       li.appendChild(check);
       li.appendChild(content);
       li.appendChild(actions);
       listEl.appendChild(li);
     });
   }
+
+  // ---------- Drag-to-Reorder (mouse + touch via pointer events) ----------
+  var dragState = null; // { taskId, originIndex, floatEl, offsetX, offsetY }
+
+  function reorderTasksAfterDrop(draggedId, targetId, placeAfter) {
+    var draggedIndex = -1, targetIndex = -1;
+    for (var i = 0; i < state.tasks.length; i++) {
+      if (state.tasks[i].id === draggedId) draggedIndex = i;
+      if (state.tasks[i].id === targetId) targetIndex = i;
+    }
+    if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) return;
+    var moved = state.tasks.splice(draggedIndex, 1)[0];
+    // After splicing out draggedIndex, recalculate targetIndex in the new array
+    targetIndex = -1;
+    for (var j = 0; j < state.tasks.length; j++) {
+      if (state.tasks[j].id === targetId) { targetIndex = j; break; }
+    }
+    if (targetIndex === -1) return;
+    var insertAt = placeAfter ? targetIndex + 1 : targetIndex;
+    state.tasks.splice(insertAt, 0, moved);
+    state.tasks.forEach(function (t, idx) { t.order = idx; });
+    saveState(state);
+    renderTasks();
+    renderSummary();
+  }
+
+  function attachDragHandlers() {
+    if (!listEl) return;
+
+    var draggedId = null;
+    var dragOverId = null;
+    var placeAfter = false;
+
+    function clearDragStyles() {
+      var items = listEl.querySelectorAll(".task-item");
+      items.forEach(function (el) {
+        el.classList.remove("dragging", "drag-over-top", "drag-over-bottom");
+      });
+    }
+
+    // ----- HTML5 Drag & Drop (desktop) -----
+    listEl.addEventListener("dragstart", function (e) {
+      var li = e.target.closest(".task-item[data-id]");
+      if (!li) return;
+      // Only allow drag if initiated from the drag handle
+      if (!e.target.closest(".drag-handle")) { e.preventDefault(); return; }
+      draggedId = li.dataset.id;
+      li.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", draggedId);
+    });
+
+    listEl.addEventListener("dragend", function () {
+      clearDragStyles();
+      draggedId = null;
+      dragOverId = null;
+    });
+
+    listEl.addEventListener("dragover", function (e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      var li = e.target.closest(".task-item[data-id]");
+      if (!li || li.dataset.id === draggedId) return;
+      var rect = li.getBoundingClientRect();
+      var midY = rect.top + rect.height / 2;
+      placeAfter = e.clientY > midY;
+      dragOverId = li.dataset.id;
+      // Update drop-indicator styles
+      var items = listEl.querySelectorAll(".task-item");
+      items.forEach(function (el) {
+        el.classList.remove("drag-over-top", "drag-over-bottom");
+        if (el.dataset.id === dragOverId) {
+          el.classList.add(placeAfter ? "drag-over-bottom" : "drag-over-top");
+        }
+      });
+    });
+
+    listEl.addEventListener("dragleave", function (e) {
+      if (!listEl.contains(e.relatedTarget)) clearDragStyles();
+    });
+
+    listEl.addEventListener("drop", function (e) {
+      e.preventDefault();
+      clearDragStyles();
+      var dropped = e.dataTransfer.getData("text/plain") || draggedId;
+      if (dropped && dragOverId && dropped !== dragOverId) {
+        reorderTasksAfterDrop(dropped, dragOverId, placeAfter);
+      }
+      draggedId = null;
+      dragOverId = null;
+    });
+
+    // ----- Pointer (touch + pen) drag -----
+    var pointerDrag = null; // { taskId, floatEl, lastY }
+
+    listEl.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0 && e.pointerType === "mouse") return;
+      var handle = e.target.closest(".drag-handle");
+      if (!handle) return;
+      var li = handle.closest(".task-item[data-id]");
+      if (!li) return;
+      e.preventDefault();
+      li.setPointerCapture(e.pointerId);
+
+      var rect = li.getBoundingClientRect();
+      // Create floating ghost clone
+      var ghost = li.cloneNode(true);
+      ghost.style.cssText = [
+        "position:fixed",
+        "left:" + rect.left + "px",
+        "top:" + rect.top + "px",
+        "width:" + rect.width + "px",
+        "opacity:0.88",
+        "pointer-events:none",
+        "z-index:9998",
+        "box-shadow:0 12px 32px rgba(0,0,0,0.22)",
+        "border-radius:12px",
+        "transition:none",
+        "transform:scale(1.02)"
+      ].join(";");
+      document.body.appendChild(ghost);
+
+      li.classList.add("dragging");
+      pointerDrag = {
+        taskId: li.dataset.id,
+        originY: e.clientY,
+        startRectTop: rect.top,
+        floatEl: ghost,
+        lastOverId: null,
+        lastPlaceAfter: false
+      };
+    });
+
+    listEl.addEventListener("pointermove", function (e) {
+      if (!pointerDrag) return;
+      e.preventDefault();
+      var dy = e.clientY - pointerDrag.originY;
+      pointerDrag.floatEl.style.top = (pointerDrag.startRectTop + dy) + "px";
+
+      // Find which item the pointer is over
+      pointerDrag.floatEl.style.display = "none";
+      var elBelow = document.elementFromPoint(e.clientX, e.clientY);
+      pointerDrag.floatEl.style.display = "";
+
+      var li = elBelow ? elBelow.closest(".task-item[data-id]") : null;
+      var items = listEl.querySelectorAll(".task-item");
+      items.forEach(function (el) { el.classList.remove("drag-over-top", "drag-over-bottom"); });
+
+      if (li && li.dataset.id !== pointerDrag.taskId) {
+        var rect = li.getBoundingClientRect();
+        var after = e.clientY > rect.top + rect.height / 2;
+        li.classList.add(after ? "drag-over-bottom" : "drag-over-top");
+        pointerDrag.lastOverId = li.dataset.id;
+        pointerDrag.lastPlaceAfter = after;
+      } else {
+        pointerDrag.lastOverId = null;
+      }
+    });
+
+    function endPointerDrag() {
+      if (!pointerDrag) return;
+      document.body.removeChild(pointerDrag.floatEl);
+      var items = listEl.querySelectorAll(".task-item");
+      items.forEach(function (el) { el.classList.remove("dragging", "drag-over-top", "drag-over-bottom"); });
+      if (pointerDrag.lastOverId && pointerDrag.lastOverId !== pointerDrag.taskId) {
+        reorderTasksAfterDrop(pointerDrag.taskId, pointerDrag.lastOverId, pointerDrag.lastPlaceAfter);
+      }
+      pointerDrag = null;
+    }
+
+    listEl.addEventListener("pointerup", endPointerDrag);
+    listEl.addEventListener("pointercancel", endPointerDrag);
+  }
+
+  // Attach drag handlers once; they use event delegation so they survive re-renders
+  attachDragHandlers();
+
+  // Also make task items draggable (HTML5) — set at render time
+  function applyDraggable() {
+    var items = listEl.querySelectorAll(".task-item[data-id]");
+    items.forEach(function (li) {
+      li.setAttribute("draggable", "true");
+    });
+  }
+
+  // Patch renderTasks to call applyDraggable after rendering
+  var _origRenderTasks = renderTasks;
+  renderTasks = function () {
+    _origRenderTasks();
+    applyDraggable();
+  };
 
   function renderEditMode(li, task) {
     while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
